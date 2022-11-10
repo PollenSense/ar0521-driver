@@ -390,7 +390,7 @@ static int ar0521_get_fmt(struct v4l2_subdev *sd,
 	mutex_lock(&sensor->lock);
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY)
-		fmt = v4l2_subdev_get_try_format(&sensor->sd, *cfg, format->pad
+		fmt = v4l2_subdev_get_try_format(&sensor->sd, cfg, format->pad
 						 /* pad */);
 	else
 		fmt = &sensor->fmt;
