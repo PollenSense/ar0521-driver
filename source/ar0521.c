@@ -980,7 +980,7 @@ entity_cleanup:
 	return ret;
 }
 
-static void ar0521_remove(struct i2c_client *client)
+static int ar0521_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -993,6 +993,8 @@ static void ar0521_remove(struct i2c_client *client)
 		ar0521_power_off(&client->dev);
 	pm_runtime_set_suspended(&client->dev);
 	mutex_destroy(&sensor->lock);
+
+	return 0;
 }
 
 static const struct dev_pm_ops ar0521_pm_ops = {
