@@ -381,7 +381,7 @@ static void ar0521_adj_fmt(struct v4l2_mbus_framefmt *fmt)
 }
 
 static int ar0521_get_fmt(struct v4l2_subdev *sd,
-			  struct v4l2_subdev_state *sd_state,
+			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *format)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -390,7 +390,7 @@ static int ar0521_get_fmt(struct v4l2_subdev *sd,
 	mutex_lock(&sensor->lock);
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY)
-		fmt = v4l2_subdev_get_try_format(&sensor->sd, sd_state, 0
+		fmt = v4l2_subdev_get_try_format(&sensor->sd, *cfg, format->pad
 						 /* pad */);
 	else
 		fmt = &sensor->fmt;
@@ -402,7 +402,7 @@ static int ar0521_get_fmt(struct v4l2_subdev *sd,
 }
 
 static int ar0521_set_fmt(struct v4l2_subdev *sd,
-			  struct v4l2_subdev_state *sd_state,
+			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *format)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -414,7 +414,7 @@ static int ar0521_set_fmt(struct v4l2_subdev *sd,
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
 		struct v4l2_mbus_framefmt *fmt;
 
-		fmt = v4l2_subdev_get_try_format(sd, sd_state, 0 /* pad */);
+		fmt = v4l2_subdev_get_try_format(sd, cfg, format->pad /* pad */);
 		*fmt = format->format;
 	} else {
 		sensor->fmt = format->format;
@@ -787,7 +787,7 @@ off:
 }
 
 static int ar0521_enum_mbus_code(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
+				 struct v4l2_subdev_pad_config *cfg,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
