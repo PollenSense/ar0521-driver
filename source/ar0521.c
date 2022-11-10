@@ -801,45 +801,6 @@ static int ar0521_enum_mbus_code(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int ar0521_pre_streamon(struct v4l2_subdev *sd, u32 flags)
-{
-	struct ar0521_dev *sensor = to_ar0521_dev(sd);
-	int ret;
-
-	if (!(flags & V4L2_SUBDEV_PRE_STREAMON_FL_MANUAL_LP))
-		return -EACCES;
-
-	ret = pm_runtime_resume_and_get(&sensor->i2c_client->dev);
-	if (ret < 0)
-		return ret;
-
-	/* Set LP-11 on clock and data lanes */
-	ret = ar0521_write_reg(sensor, AR0521_REG_HISPI_CONTROL_STATUS,
-			AR0521_REG_HISPI_CONTROL_STATUS_FRAMER_TEST_MODE_ENABLE);
-	if (ret)
-		goto err;
-
-	/* Start streaming LP-11 */
-	ret = ar0521_write_reg(sensor, AR0521_REG_RESET,
-			       AR0521_REG_RESET_DEFAULTS |
-			       AR0521_REG_RESET_STREAM);
-	if (ret)
-		goto err;
-	return 0;
-
-err:
-	pm_runtime_put(&sensor->i2c_client->dev);
-	return ret;
-}
-
-static int ar0521_post_streamoff(struct v4l2_subdev *sd)
-{
-	struct ar0521_dev *sensor = to_ar0521_dev(sd);
-
-	pm_runtime_put(&sensor->i2c_client->dev);
-	return 0;
-}
-
 static int ar0521_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -861,8 +822,6 @@ static const struct v4l2_subdev_core_ops ar0521_core_ops = {
 
 static const struct v4l2_subdev_video_ops ar0521_video_ops = {
 	.s_stream = ar0521_s_stream,
-	.pre_streamon = ar0521_pre_streamon,
-	.post_streamoff = ar0521_post_streamoff,
 };
 
 static const struct v4l2_subdev_pad_ops ar0521_pad_ops = {
