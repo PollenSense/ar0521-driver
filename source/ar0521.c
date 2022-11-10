@@ -8,6 +8,8 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/pm_runtime.h>
+#include <linux/regulator/consumer.h>
+
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-fwnode.h>
