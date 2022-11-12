@@ -1,5 +1,7 @@
 # ar0521-driver
 
+the `ar0521-decompiled.dts` is the result of using `dtc` on PiOS to convert the buildroot-built `dtb` into a `dts` file.
+
 
 helpful link for checking where methods exist in the kernel:
 

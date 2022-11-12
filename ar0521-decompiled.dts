@@ -1,0 +1,55 @@
+/dts-v1/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <0xffffffff>;
+		phandle = <0x01>;
+
+		__overlay__ {
+			#address-cells = <0x01>;
+			#size-cells = <0x00>;
+
+			camera-sensor@36 {
+				compatible = "onnn,ar0521";
+				reg = <0x36>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0xffffffff>;
+				clocks = <0xffffffff 0xc9>;
+				clock-names = "extclk";
+				reset-gpios = <0xffffffff 0x07 0x01>;
+				vaa-supply = <0xffffffff>;
+				vdd-supply = <0xffffffff>;
+				vdd_io-supply = <0xffffffff>;
+				phandle = <0x02>;
+
+				port {
+
+					endpoint {
+						remote-endpoint = <0xffffffff>;
+						data-lanes = <0x01 0x02 0x03 0x04>;
+						phandle = <0x03>;
+					};
+				};
+			};
+		};
+	};
+
+	__symbols__ {
+		i2c_frag = "/fragment@0";
+		ar0521 = "/fragment@0/__overlay__/camera-sensor@36";
+		mipi_camera_to_mipi_csi2 = "/fragment@0/__overlay__/camera-sensor@36/port/endpoint";
+	};
+
+	__fixups__ {
+		i2c_csi_dsi = "/fragment@0:target:0";
+		pinctrl_mipi_camera = "/fragment@0/__overlay__/camera-sensor@36:pinctrl-0:0";
+		clks = "/fragment@0/__overlay__/camera-sensor@36:clocks:0";
+		gpio1 = "/fragment@0/__overlay__/camera-sensor@36:reset-gpios:0";
+		reg_2p7v = "/fragment@0/__overlay__/camera-sensor@36:vaa-supply:0";
+		reg_1p2v = "/fragment@0/__overlay__/camera-sensor@36:vdd-supply:0";
+		reg_1p8v = "/fragment@0/__overlay__/camera-sensor@36:vdd_io-supply:0";
+		mipi_csi2_in = "/fragment@0/__overlay__/camera-sensor@36/port/endpoint:remote-endpoint:0";
+	};
+};
