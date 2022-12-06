@@ -2,7 +2,7 @@
 
 Based on https://github.com/sunny0917/ar0521
 
-Back-porting for kernel version 5.10.92
+Targets kernel version 5.10.92
 
 The `ar0521-decompiled.dts` is the result of using `dtc` on PiOS to convert the buildroot-built `dtb` into a `dts` file.
 
