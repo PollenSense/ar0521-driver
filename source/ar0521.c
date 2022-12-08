@@ -869,9 +869,11 @@ static int ar0521_probe(struct i2c_client *client)
 	unsigned int cnt;
 	int ret;
 
+	printk("%s() %d\r\n", __func__, __LINE__);
 	sensor = devm_kzalloc(dev, sizeof(*sensor), GFP_KERNEL);
 	if (!sensor)
 		return -ENOMEM;
+	printk("%s() %d\r\n", __func__, __LINE__);
 
 	sensor->i2c_client = client;
 	sensor->fmt.width = AR0521_WIDTH_MAX;
@@ -883,19 +885,19 @@ static int ar0521_probe(struct i2c_client *client)
 		dev_err(dev, "endpoint node not found\n");
 		return -EINVAL;
 	}
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	ret = v4l2_fwnode_endpoint_parse(endpoint, &ep);
 	fwnode_handle_put(endpoint);
 	if (ret) {
 		dev_err(dev, "could not parse endpoint\n");
 		return ret;
 	}
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	if (ep.bus_type != V4L2_MBUS_CSI2_DPHY) {
 		dev_err(dev, "invalid bus type, must be MIPI CSI2\n");
 		return -EINVAL;
 	}
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	sensor->lane_count = ep.bus.mipi_csi2.num_data_lanes;
 	switch (sensor->lane_count) {
 	case 1:
@@ -906,7 +908,7 @@ static int ar0521_probe(struct i2c_client *client)
 		dev_err(dev, "invalid number of MIPI data lanes\n");
 		return -EINVAL;
 	}
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	/* Get master clock (extclk) */
 	sensor->extclk = devm_clk_get(dev, "extclk");
 	if (IS_ERR(sensor->extclk)) {
@@ -922,20 +924,20 @@ static int ar0521_probe(struct i2c_client *client)
 			sensor->extclk_freq);
 		return -EINVAL;
 	}
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	/* Request optional reset pin (usually active low) and assert it */
 	sensor->reset_gpio = devm_gpiod_get_optional(dev, "reset",
 						     GPIOD_OUT_HIGH);
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	v4l2_i2c_subdev_init(&sensor->sd, client, &ar0521_subdev_ops);
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	sensor->sd.flags = V4L2_SUBDEV_FL_HAS_DEVNODE;
 	sensor->pad.flags = MEDIA_PAD_FL_SOURCE;
 	sensor->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 	ret = media_entity_pads_init(&sensor->sd.entity, 1, &sensor->pad);
 	if (ret)
 		return ret;
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	for (cnt = 0; cnt < ARRAY_SIZE(ar0521_supply_names); cnt++) {
 		struct regulator *supply = devm_regulator_get(dev,
 						ar0521_supply_names[cnt]);
@@ -947,7 +949,7 @@ static int ar0521_probe(struct i2c_client *client)
 		}
 		sensor->supplies[cnt] = supply;
 	}
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	mutex_init(&sensor->lock);
 
 	ret = ar0521_init_controls(sensor);
@@ -955,7 +957,7 @@ static int ar0521_probe(struct i2c_client *client)
 		goto entity_cleanup;
 
 	ar0521_adj_fmt(&sensor->fmt);
-
+	printk("%s() %d\r\n", __func__, __LINE__);
 	ret = v4l2_async_register_subdev(&sensor->sd);
 	if (ret)
 		goto free_ctrls;
@@ -967,14 +969,18 @@ static int ar0521_probe(struct i2c_client *client)
 	pm_runtime_set_active(&client->dev);
 	pm_runtime_enable(&client->dev);
 	pm_runtime_idle(&client->dev);
+	printk("%s() %d\r\n", __func__, __LINE__); 
 	return 0;
 
 disable:
+	printk("%s() %d\r\n", __func__, __LINE__);
 	v4l2_async_unregister_subdev(&sensor->sd);
 	media_entity_cleanup(&sensor->sd.entity);
 free_ctrls:
+	printk("%s() %d\r\n", __func__, __LINE__);
 	v4l2_ctrl_handler_free(&sensor->ctrls.handler);
 entity_cleanup:
+	printk("%s() %d\r\n", __func__, __LINE__);
 	media_entity_cleanup(&sensor->sd.entity);
 	mutex_destroy(&sensor->lock);
 	return ret;

@@ -17,8 +17,8 @@
 				reg = <0x36>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_mipi_camera>;
-				clocks = <&clks IMX6QDL_CLK_CKO>;
-				clock-names = "extclk";
+				clocks = < 0x01 >;
+				clock-names = "xclk";
 				reset-gpios = <&gpio1 7 GPIO_ACTIVE_LOW>;
 				vaa-supply = <&reg_2p7v>;
 				vdd-supply = <&reg_1p2v>;
