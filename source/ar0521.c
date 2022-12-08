@@ -731,7 +731,7 @@ static int ar0521_power_off(struct device *dev)
 
 static int ar0521_power_on(struct device *dev)
 {
-	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+	struct v4l2_subdev *sd = dev_get_drvdata();
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
 	unsigned int cnt;
 	int ret;
