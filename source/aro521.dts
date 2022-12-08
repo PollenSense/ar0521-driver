@@ -33,4 +33,23 @@
 			};
 		};   
 	};
+
+	fragment@1 {
+		target = <&csi1>;
+		__overlay__ {
+			status = "okay";
+	
+			port {
+				remote-endpoint = <&mipi_camera_to_mipi_csi2>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+	
+	fragment@2 {
+		target = <&csi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
 };
