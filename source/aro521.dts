@@ -1,27 +1,27 @@
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/clock/imx6qdl-clock.h>
+ #include <dt-bindings/gpio/gpio.h>
+    #include <dt-bindings/clock/imx6qdl-clock.h>
 
-i2c {
-		#address-cells = <1>;
-		#size-cells = <0>;
+    i2c {
+            #address-cells = <1>;
+            #size-cells = <0>;
 
-	ar0521: i2c@0 {
-		compatible = "onnn,ar0521";
-		reg = <0x36>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_mipi_camera>;
-		clocks = <&clks IMX6QDL_CLK_CKO>;
-		clock-names = "extclk";
-		reset-gpios = <&gpio1 7 GPIO_ACTIVE_LOW>;
-		vaa-supply = <&reg_2p7v>;
-		vdd-supply = <&reg_1p2v>;
-		vdd_io-supply = <&reg_1p8v>;
+            ar0521: camera-sensor@36 {
+                    compatible = "onnn,ar0521";
+                    reg = <0x36>;
+                    pinctrl-names = "default";
+                    pinctrl-0 = <&pinctrl_mipi_camera>;
+                    clocks = <&clks IMX6QDL_CLK_CKO>;
+                    clock-names = "extclk";
+                    reset-gpios = <&gpio1 7 GPIO_ACTIVE_LOW>;
+                    vaa-supply = <&reg_2p7v>;
+                    vdd-supply = <&reg_1p2v>;
+                    vdd_io-supply = <&reg_1p8v>;
 
-		port {
-			mipi_camera_to_mipi_csi2: endpoint {
-				remote-endpoint = <&mipi_csi2_in>;
-				data-lanes = <1 2 3 4>;
-			};
-		};
-	};
+                    port {
+                           mipi_camera_to_mipi_csi2: endpoint {
+                                    remote-endpoint = <&mipi_csi2_in>;
+                                    data-lanes = <1 2 3 4>;
+                            };
+                    };
+            };
 };
