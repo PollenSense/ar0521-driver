@@ -988,8 +988,8 @@ static int ar0521_probe(struct i2c_client *client)
 	/* Turn on the device and enable runtime PM */
 	ret = ar0521_power_on(&client->dev);
 	if (ret)
-		goto disable;
-	pm_runtime_set_active(&client->dev);
+		return ret;//goto disable;  NOTE: just for debugging
+  	pm_runtime_set_active(&client->dev);
 	pm_runtime_enable(&client->dev);
 	pm_runtime_idle(&client->dev);
 	printk("%s() %d\r\n", __func__, __LINE__); 
