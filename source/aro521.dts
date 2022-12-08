@@ -34,22 +34,19 @@
 		};   
 	};
 
-	fragment@1 {
+	csi_frag: fragment@1 {
 		target = <&csi1>;
-		__overlay__ {
+		csi: __overlay__ {
 			status = "okay";
-	
+			brcm,media-controller;
+
 			port {
-				remote-endpoint = <&mipi_camera_to_mipi_csi2>;
-				data-lanes = <1 2 3 4>;
+				csi_ep: endpoint {
+					remote-endpoint = <&mipi_camera_to_mipi_csi2>;
+				};
 			};
 		};
 	};
-	
-	fragment@2 {
-		target = <&csi0>;
-		__overlay__ {
-			status = "okay";
-		};
-	};
+
+
 };
