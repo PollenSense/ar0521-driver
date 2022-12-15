@@ -1,0 +1,89 @@
+Even on otherwise idle I2C bus this would add unnecessary latency.
+I prefer to have a much faster code, even if using that be() macro (which isn't ugly IMHO).
+
+'be()' is bad as it is only used in this driver, modifying the register tables requires to handle the be() macro. 
+I had tested this by moving register tables to and from a different driver and I had to manually insert the be() thing and remove it on the other way around.
+
+The long table writes should be done once at power-up time, not in any hot path.
+
+Power-up isn't "once" anymore. It looks like it's to be done before every start of capture operation (my device will not do that).
+
+That said, if the efficiency argument holds for others, feel free to keep it the way it is.
+
+Would it be possible it's the gain/exposure settings? If not, what exact clock frequency (for the chip) do you use?
+
+Do you know why registers are mirrored ? I haven't find any reference to register shadowing in the manual.
+
+I think the first set follows some standard, but it lacks something - thus a new set. Or maybe it's how the chip was build from blocks 
+
+When you disable streaming, the clock lanes are apparently in LP-11 state, however data lanes are LP-00.
+
+I anyway think doing this here is not the best idea. "We" have a pre_streamon() operation but it's also usually done at s_stream(0)
+which you can call at device node open time to coax the lines in LP-11. You already do most of these things, so I would move the test
+mode handling to s_stream(0) and start/stop stream by just toggling the RESET_STREAM bit as suggested in the s_stream() code snippet 
+
+I don't get it completely. However I see I could use the pre_stream() to put the sensor in LP-11 mode (doing this in s_stream(0) would then be pointless). I will see if it works.
+RESET_STREAM must be already set to 1 (ACTIVE STREAMING) before s_stream(1) is called.
+
+This register controls the HiSPI interface while my understanding is that everything is MIPI CSI-2 in the rest of the driver. Why is it
+
+Maybe by accident, as a consequence enabling/disabling the test modes on the CSI-2 lanes ?
+
+I guess it simply enables/disables the chosen test mode in the CSI-2 lanes
+I've chosen the test mode to be, well, LP-11 on all lines.
+
+>> >> +	return ar0521_write_reg(sensor, AR0521_REG_RESET,
+>> >> +				AR0521_REG_RESET_DEFAULTS |
+>> >> +				AR0521_REG_RESET_RESTART |
+>> >> +				AR0521_REG_RESET_STREAM);
+>> >> +}
+
+RESTART as per its definition interrupts the frame and re starts the stream. START enables/disable streaming. You set them both, even at s_stream(0) time, and things might work by accident because you enable/disable the test mode at s_stream() time.
+
+As suggested I would rather coax the data lanes in LP-11 state at s_stream(0) time by enabling test mode after having disabled streaming
+by clearing the RESET_STREAM bit in AR0521_REG_RESET.
+
+How would you do that?
+If you disable streaming, LP-11 is gone.
+You need STREAMING to actually "stream" LP-11.
+
+Similarly at s_stream(1) time I would disable the test mode (I bet it could be done by clearing bits [9:6] in 0x3066 without touching the HiSpi control register) and the start streaming by setting RESET_STREAM.
+
+// normal output on clock and data lanes
+ret = ar0521_write_reg(sensor, AR0521_REG_HISPI_CONTROL_STATUS, 0);
+
+0x31C6 = AR0521_REG_HISPI_CONTROL_STATUS which is a misnomer and perhaps I should call it AR0521_REG_MIPI_AND_HISPI_CONTROL_STATUS.
+
+The format can’t be changed because the pad is currently busy. This can be caused, for instance, by an active video stream on the pad. The
+ioctl must not be retried without performing another action to fix the problem first. Only returned by VIDIOC_SUBDEV_S_FMT
+
+But it doesn't say EBUSY MUST BE returned when the sensor is streaming, only that it MAY BE returned. Looking at the code, I can see nothing forcing the EBUSY (subdev_do_ioctl(VIDIOC_SUBDEV_S_FMT) -> v4l2_subdev_call(set_fmt)). It also appears several drivers update
+registers in their set_fmt(), so I think it's the desirable action there.
+
+>> +	ret = ar0521_write_reg(sensor, AR0521_REG_ROW_SPEED, 0x110 | 4 / sensor->lane_count);
+
+pc_speed Slows down the internal pixel clock frequency relative to the system 
+clock frequency.  A programmed value of N gives a pixel clock period of N system clocks.  Only values 1, 2 and 4 are supported.
+
+Exactly. This "programmed once" (per power-up) is exactly why I set it in ar0521_power_on() instead of calc_pll().
+First, calc_pll is calculations-only, no hw access (suggested by Laurent IIRC, and it plays well). Second, calc_pll() is called multiple times.
+
+pm_runtime*() in this driver is a bit fragile and I'd welcome someone who know how does this PM stuff work looking at it...
+... with the following quick patch applied on top of v5: 
+
+-	pm_runtime_idle(&client->dev);
++	if (pm_runtime_idle(&client->dev) == -ENOSYS) {
++		ret = ar0521_power_on(sensor);
++		if (ret)
++			goto disable;
++	}
+ 	dev_dbg(dev, "AR0521 driver initialized, master clock frequency: %u MHz, %u MIPI data lanes\n",
+ 		sensor->extclk_freq, sensor->lane_count);
+ 	return 0;
+ 
++disable:
++	v4l2_async_unregister_subdev(&sensor->sd);
++	media_entity_cleanup(&sensor->sd.entity);
+ free_ctrls:
+ 	v4l2_ctrl_handler_free(&sensor->ctrls.handler);
+ entity_cleanup:
