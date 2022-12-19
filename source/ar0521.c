@@ -8,6 +8,8 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/pm_runtime.h>
+#include <linux/regulator/consumer.h>
+
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-fwnode.h>
@@ -381,7 +383,7 @@ static void ar0521_adj_fmt(struct v4l2_mbus_framefmt *fmt)
 }
 
 static int ar0521_get_fmt(struct v4l2_subdev *sd,
-			  struct v4l2_subdev_state *sd_state,
+			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *format)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -390,7 +392,7 @@ static int ar0521_get_fmt(struct v4l2_subdev *sd,
 	mutex_lock(&sensor->lock);
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY)
-		fmt = v4l2_subdev_get_try_format(&sensor->sd, sd_state, 0
+		fmt = v4l2_subdev_get_try_format(&sensor->sd, cfg, format->pad
 						 /* pad */);
 	else
 		fmt = &sensor->fmt;
@@ -402,11 +404,10 @@ static int ar0521_get_fmt(struct v4l2_subdev *sd,
 }
 
 static int ar0521_set_fmt(struct v4l2_subdev *sd,
-			  struct v4l2_subdev_state *sd_state,
+			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *format)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
-	int ret = 0;
 
 	ar0521_adj_fmt(&format->format);
 
@@ -415,7 +416,7 @@ static int ar0521_set_fmt(struct v4l2_subdev *sd,
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
 		struct v4l2_mbus_framefmt *fmt;
 
-		fmt = v4l2_subdev_get_try_format(sd, sd_state, 0 /* pad */);
+		fmt = v4l2_subdev_get_try_format(sd, cfg, format->pad /* pad */);
 		*fmt = format->format;
 	} else {
 		sensor->fmt = format->format;
@@ -423,7 +424,7 @@ static int ar0521_set_fmt(struct v4l2_subdev *sd,
 	}
 
 	mutex_unlock(&sensor->lock);
-	return ret;
+	return 0;
 }
 
 static int ar0521_s_ctrl(struct v4l2_ctrl *ctrl)
@@ -756,10 +757,12 @@ static int ar0521_power_on(struct device *dev)
 		gpiod_set_value(sensor->reset_gpio, 0);
 	usleep_range(4500, 5000); /* min 45000 clocks */
 
-	for (cnt = 0; cnt < ARRAY_SIZE(initial_regs); cnt++)
-		if (ar0521_write_regs(sensor, initial_regs[cnt].data,
-				      initial_regs[cnt].count))
+	for (cnt = 0; cnt < ARRAY_SIZE(initial_regs); cnt++) {
+		ret = ar0521_write_regs(sensor, initial_regs[cnt].data,
+					initial_regs[cnt].count);
+		if (ret)
 			goto off;
+	}
 
 	ret = ar0521_write_reg(sensor, AR0521_REG_SERIAL_FORMAT,
 			       AR0521_REG_SERIAL_FORMAT_MIPI |
@@ -786,7 +789,7 @@ off:
 }
 
 static int ar0521_enum_mbus_code(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
+				 struct v4l2_subdev_pad_config *cfg,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -795,45 +798,6 @@ static int ar0521_enum_mbus_code(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	code->code = sensor->fmt.code;
-	return 0;
-}
-
-static int ar0521_pre_streamon(struct v4l2_subdev *sd, u32 flags)
-{
-	struct ar0521_dev *sensor = to_ar0521_dev(sd);
-	int ret;
-
-	if (!(flags & V4L2_SUBDEV_PRE_STREAMON_FL_MANUAL_LP))
-		return -EACCES;
-
-	ret = pm_runtime_resume_and_get(&sensor->i2c_client->dev);
-	if (ret < 0)
-		return ret;
-
-	/* Set LP-11 on clock and data lanes */
-	ret = ar0521_write_reg(sensor, AR0521_REG_HISPI_CONTROL_STATUS,
-			AR0521_REG_HISPI_CONTROL_STATUS_FRAMER_TEST_MODE_ENABLE);
-	if (ret)
-		goto err;
-
-	/* Start streaming LP-11 */
-	ret = ar0521_write_reg(sensor, AR0521_REG_RESET,
-			       AR0521_REG_RESET_DEFAULTS |
-			       AR0521_REG_RESET_STREAM);
-	if (ret)
-		goto err;
-	return 0;
-
-err:
-	pm_runtime_put(&sensor->i2c_client->dev);
-	return ret;
-}
-
-static int ar0521_post_streamoff(struct v4l2_subdev *sd)
-{
-	struct ar0521_dev *sensor = to_ar0521_dev(sd);
-
-	pm_runtime_put(&sensor->i2c_client->dev);
 	return 0;
 }
 
@@ -858,8 +822,6 @@ static const struct v4l2_subdev_core_ops ar0521_core_ops = {
 
 static const struct v4l2_subdev_video_ops ar0521_video_ops = {
 	.s_stream = ar0521_s_stream,
-	.pre_streamon = ar0521_pre_streamon,
-	.post_streamoff = ar0521_post_streamoff,
 };
 
 static const struct v4l2_subdev_pad_ops ar0521_pad_ops = {
@@ -907,9 +869,14 @@ static int ar0521_probe(struct i2c_client *client)
 	unsigned int cnt;
 	int ret;
 
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 	sensor = devm_kzalloc(dev, sizeof(*sensor), GFP_KERNEL);
 	if (!sensor)
 		return -ENOMEM;
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
+
 
 	sensor->i2c_client = client;
 	sensor->fmt.width = AR0521_WIDTH_MAX;
@@ -921,6 +888,8 @@ static int ar0521_probe(struct i2c_client *client)
 		dev_err(dev, "endpoint node not found\n");
 		return -EINVAL;
 	}
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	ret = v4l2_fwnode_endpoint_parse(endpoint, &ep);
 	fwnode_handle_put(endpoint);
@@ -928,11 +897,15 @@ static int ar0521_probe(struct i2c_client *client)
 		dev_err(dev, "could not parse endpoint\n");
 		return ret;
 	}
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	if (ep.bus_type != V4L2_MBUS_CSI2_DPHY) {
 		dev_err(dev, "invalid bus type, must be MIPI CSI2\n");
 		return -EINVAL;
 	}
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	sensor->lane_count = ep.bus.mipi_csi2.num_data_lanes;
 	switch (sensor->lane_count) {
@@ -944,6 +917,8 @@ static int ar0521_probe(struct i2c_client *client)
 		dev_err(dev, "invalid number of MIPI data lanes\n");
 		return -EINVAL;
 	}
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	/* Get master clock (extclk) */
 	sensor->extclk = devm_clk_get(dev, "extclk");
@@ -960,12 +935,18 @@ static int ar0521_probe(struct i2c_client *client)
 			sensor->extclk_freq);
 		return -EINVAL;
 	}
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	/* Request optional reset pin (usually active low) and assert it */
 	sensor->reset_gpio = devm_gpiod_get_optional(dev, "reset",
 						     GPIOD_OUT_HIGH);
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	v4l2_i2c_subdev_init(&sensor->sd, client, &ar0521_subdev_ops);
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	sensor->sd.flags = V4L2_SUBDEV_FL_HAS_DEVNODE;
 	sensor->pad.flags = MEDIA_PAD_FL_SOURCE;
@@ -973,6 +954,8 @@ static int ar0521_probe(struct i2c_client *client)
 	ret = media_entity_pads_init(&sensor->sd.entity, 1, &sensor->pad);
 	if (ret)
 		return ret;
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	for (cnt = 0; cnt < ARRAY_SIZE(ar0521_supply_names); cnt++) {
 		struct regulator *supply = devm_regulator_get(dev,
@@ -985,6 +968,8 @@ static int ar0521_probe(struct i2c_client *client)
 		}
 		sensor->supplies[cnt] = supply;
 	}
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	mutex_init(&sensor->lock);
 
@@ -993,31 +978,39 @@ static int ar0521_probe(struct i2c_client *client)
 		goto entity_cleanup;
 
 	ar0521_adj_fmt(&sensor->fmt);
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	ret = v4l2_async_register_subdev(&sensor->sd);
 	if (ret)
 		goto free_ctrls;
 
 	/* Turn on the device and enable runtime PM */
+	printk("powering on");
 	ret = ar0521_power_on(&client->dev);
+	printk("powered on");
 	if (ret)
-		goto disable;
-	pm_runtime_set_active(&client->dev);
+		return ret;//goto disable;  NOTE: just for debugging
+  	pm_runtime_set_active(&client->dev);
 	pm_runtime_enable(&client->dev);
-	//pm_runtime_idle(&client->dev);
-	if (pm_runtime_idle(&client->dev) == -ENOSYS) {
-		ret = ar0521_power_on(sensor);
-		if (ret)
-			goto disable;
-	}
+	pm_runtime_idle(&client->dev);
+	printk("%s() %d\r\n", __func__, __LINE__); 
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
+
 	return 0;
 
 disable:
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 	v4l2_async_unregister_subdev(&sensor->sd);
 	media_entity_cleanup(&sensor->sd.entity);
 free_ctrls:
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 	v4l2_ctrl_handler_free(&sensor->ctrls.handler);
 entity_cleanup:
+	printk("%s() %d\r\n", __func__, __LINE__);
+	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 	media_entity_cleanup(&sensor->sd.entity);
 	mutex_destroy(&sensor->lock);
 	return ret;
@@ -1036,6 +1029,7 @@ static int ar0521_remove(struct i2c_client *client)
 		ar0521_power_off(&client->dev);
 	pm_runtime_set_suspended(&client->dev);
 	mutex_destroy(&sensor->lock);
+
 	return 0;
 }
 
