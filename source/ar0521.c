@@ -751,12 +751,14 @@ static int ar0521_power_on(struct device *dev)
 		goto off;
 	}
 	usleep_range(1000, 1500); /* min 1 ms */
-
+	int reset_gpio_val = gpiod_get_value(sensor->reset_gpio);
+	printk("%s() GPIO VAL %d\r\n", __func__, reset_gpio_val);
 	if (sensor->reset_gpio)
 		/* deassert RESET signal */
 		gpiod_set_value(sensor->reset_gpio, 0);
 	usleep_range(4500, 5000); /* min 45000 clocks */
-
+	reset_gpio_val = gpiod_get_value(sensor->reset_gpio);
+	printk("%s() GPIO VAL %d\r\n", __func__, reset_gpio_val);
 	for (cnt = 0; cnt < ARRAY_SIZE(initial_regs); cnt++) {
 		ret = ar0521_write_regs(sensor, initial_regs[cnt].data,
 					initial_regs[cnt].count);
