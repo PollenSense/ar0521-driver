@@ -20,7 +20,7 @@
 
 				clocks = <&cam1_clk>;
 				clock-names = "extclk";
-                    		reset-gpios = <&expgpio 5 GPIO_ACTIVE_LOW>;
+				reset-gpios = <&expgpio 5>;
 
 				avdd-supply = <&cam1_reg>;
 				dovdd-supply = <&cam_dummy_reg>;
