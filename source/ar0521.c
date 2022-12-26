@@ -200,6 +200,40 @@ static int ar0521_write_reg(struct ar0521_dev *sensor, u16 reg, u16 val)
 	return ar0521_write_regs(sensor, buf, 2);
 }
 
+static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u32  *val)
+{
+	struct i2c_client *client = sensor->i2c_client;
+	struct i2c_msg msg[2];
+	u8 buf[2];
+	int ret;
+
+	buf[0] = reg >> 8;
+	buf[1] = reg & 0xff;
+
+	/* Write register address */
+	msg[0].addr = client->addr;
+	msg[0].flags = 0;
+	msg[0].buf = buf;
+	msg[0].len = sizeof(buf);
+
+	/* Read data from register */
+	msg[1].addr = client->addr;
+	msg[1].flags = I2C_M_RD;
+	msg[1].buf = buf;
+	msg[1].len = 1;
+
+	ret = i2c_transfer(client->adapter, msg,2);
+	if (ret < 0) {
+		dev_err(&client->dev, "%s: error: reg=%x\n",
+			__func__, reg);
+		return ret;
+	}
+
+	*val = buf[0];
+
+	return 0;
+}
+
 static int ar0521_set_geometry(struct ar0521_dev *sensor)
 {
 	/* Center the image in the visible output window. */
@@ -1132,6 +1166,15 @@ static int ar0521_probe(struct i2c_client *client)
 	ret = v4l2_async_register_subdev(&sensor->sd);
 	if (ret)
 		goto free_ctrls;
+
+	/* Read Chip ID */
+	int val;
+	ret = ar0521_read_reg(sensor, AR0521_REG_CHIP_ID, &val);
+	if (ret) {
+		dev_err(dev, "AR0521 register read failed with error %d\r\n", ret);
+	} else {
+		printk("Got AR0521 chipd ID 0x%x\r\n", val);
+	}
 
 	/* Turn on the device and enable runtime PM */
 	printk("powering on");
