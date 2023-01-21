@@ -883,7 +883,7 @@ static int ar0521_power_off(struct device *dev)
 	clk_disable_unprepare(sensor->extclk);
 
 	if (sensor->reset_gpio)
-		gpiod_set_value(sensor->reset_gpio, 1); /* assert RESET signal */
+		gpiod_set_value_cansleep(sensor->reset_gpio, 1); /* assert RESET signal */
 
 	for (i = ARRAY_SIZE(ar0521_supply_names) - 1; i >= 0; i--) {
 		if (sensor->supplies[i])
@@ -917,7 +917,7 @@ static int ar0521_power_on(struct device *dev)
 
 	if (sensor->reset_gpio)
 		/* deassert RESET signal */
-		gpiod_set_value(sensor->reset_gpio, 0);
+		gpiod_set_value_cansleep(sensor->reset_gpio, 0);
 	usleep_range(4500, 5000); /* min 45000 clocks */
 
 	for (cnt = 0; cnt < ARRAY_SIZE(initial_regs); cnt++) {
@@ -1167,40 +1167,27 @@ static int ar0521_probe(struct i2c_client *client)
 	if (ret)
 		goto free_ctrls;
 
-	/* Read Chip ID */
-	int val;
-	ret = ar0521_read_reg(sensor, AR0521_REG_CHIP_ID, &val);
-	if (ret) {
-		dev_err(dev, "AR0521 register read failed with error %d\r\n", ret);
-	} else {
-		printk("Got AR0521 chipd ID 0x%x\r\n", val);
-	}
-
 	/* Turn on the device and enable runtime PM */
 	printk("powering on");
 	ret = ar0521_power_on(&client->dev);
 	printk("powered on");
 	if (ret)
-		return ret;//goto disable;  NOTE: just for debugging
+		goto disable;
   	pm_runtime_set_active(&client->dev);
 	pm_runtime_enable(&client->dev);
 	pm_runtime_idle(&client->dev);
-	printk("%s() %d\r\n", __func__, __LINE__); 
 	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 
 	return 0;
 
 disable:
-	printk("%s() %d\r\n", __func__, __LINE__);
 	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 	v4l2_async_unregister_subdev(&sensor->sd);
 	media_entity_cleanup(&sensor->sd.entity);
 free_ctrls:
-	printk("%s() %d\r\n", __func__, __LINE__);
 	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 	v4l2_ctrl_handler_free(&sensor->ctrls.handler);
 entity_cleanup:
-	printk("%s() %d\r\n", __func__, __LINE__);
 	dev_err(dev,"%s %d\r\n", __func__, __LINE__);
 	media_entity_cleanup(&sensor->sd.entity);
 	mutex_destroy(&sensor->lock);
