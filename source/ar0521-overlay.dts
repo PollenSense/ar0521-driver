@@ -5,7 +5,6 @@
 
 /{
 	compatible = "brcm,bcm2835";
-
 	i2c_frag: fragment@0 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
@@ -20,9 +19,9 @@
 
 				clocks = <&cam1_clk>;
 				clock-names = "extclk";
-				reset-gpios = <&expgpio 5>;
+				reset-gpio = <&expgpio 5 1>;
 
-				avdd-supply = <&cam1_reg>;
+				avdd-supply = <&cam_dummy_reg>;
 				dovdd-supply = <&cam_dummy_reg>;
 				dvdd-supply = <&cam_dummy_reg>;
 
@@ -47,6 +46,7 @@
 		target = <&csi1>;
 		csi: __overlay__ {
 			status = "okay";
+			brcm,num-data-lanes = <0x02>;
 
 			port {
 				csi1_ep: endpoint {
@@ -74,7 +74,7 @@
 	reg_frag: fragment@4 {
 		target = <&cam1_reg>;
 		__overlay__ {
-			startup-delay-us = <20000>;
+			status = "disabled";
 		};
 	};
 
@@ -93,7 +93,6 @@
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&reg_frag>, "target:0=",<&cam0_reg>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
-		       <&ar0521>, "clocks:0=",<&cam0_clk>,
-		       <&ar0521>, "avdd-supply:0=",<&cam0_reg>;
+		       <&ar0521>, "clocks:0=",<&cam0_clk>;
 	};
 };
