@@ -40,8 +40,8 @@
 #define AR0521_HEIGHT_MIN		8u
 #define AR0521_HEIGHT_MAX		1944u
 
-#define AR0521_WIDTH_BLANKING_MIN	572u
-#define AR0521_HEIGHT_BLANKING_MIN	38u /* must be even */
+#define AR0521_WIDTH_BLANKING_MIN	300u
+#define AR0521_HEIGHT_BLANKING_MIN	30u /* must be even */
 #define AR0521_TOTAL_HEIGHT_MAX		65535u /* max_frame_length_lines */
 #define AR0521_TOTAL_WIDTH_MAX		65532u /* max_line_length_pck */
 
