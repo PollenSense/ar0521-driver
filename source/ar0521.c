@@ -238,56 +238,45 @@ static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u32  *val)
 
 static int ar0521_set_geometry(struct ar0521_dev *sensor)
 {
+	u16 height, width, x, y;
 
-	if ( sensor->fmt.height == 720 && sensor->fmt.width == 1280) {
-		u16 height = 1440;
-		u16 width = 2560;
-		/* Center the image in the visible output window. */
-		u16 x = clamp((AR0521_WIDTH_MAX - width) / 2,
-				AR0521_MIN_X_ADDR_START, AR0521_MAX_X_ADDR_END);
-		u16 y = clamp(((AR0521_HEIGHT_MAX - height) / 2) & ~1,
-				AR0521_MIN_Y_ADDR_START, AR0521_MAX_Y_ADDR_END);
-
+	// Binning is possible only if required height and width is half of max height and width
+	if (sensor->fmt.height <= (AR0521_HEIGHT_MAX / 2) && sensor->fmt.width <= (AR0521_WIDTH_MAX / 2)) {
 		// Enable binning horizontal + Vertical binning with 2x2
 		ar0521_write_reg(sensor, AR0521_REG_READ_MODE, 0x8C3);
-		/* All dimensions are unsigned 12-bit integers */
-		__be16 regs[] = {
-			be(AR0521_REG_FRAME_LENGTH_LINES),
-			be(sensor->fmt.height + sensor->ctrls.vblank->val),
-			be(sensor->fmt.width + sensor->ctrls.hblank->val),
-			be(x),
-			be(y),
-			be(x + width - 1),
-			be(y + height - 1),
-			be(sensor->fmt.width),
-			be(sensor->fmt.height)
-		};
-		return ar0521_write_regs(sensor, regs, ARRAY_SIZE(regs));
 
+		width = sensor->fmt.width * 2;
+		height = sensor->fmt.height * 2;
 	} else {
-
 		// For other resolution use normal operation i.e windowing
 		ar0521_write_reg(sensor, AR0521_REG_READ_MODE, 0x41);
-		/* Center the image in the visible output window. */
-		u16 x = clamp((AR0521_WIDTH_MAX - sensor->fmt.width) / 2,
-				AR0521_MIN_X_ADDR_START, AR0521_MAX_X_ADDR_END);
-		u16 y = clamp(((AR0521_HEIGHT_MAX - sensor->fmt.height) / 2) & ~1,
-				AR0521_MIN_Y_ADDR_START, AR0521_MAX_Y_ADDR_END);
 
-		/* All dimensions are unsigned 12-bit integers */
-		__be16 regs[] = {
-			be(AR0521_REG_FRAME_LENGTH_LINES),
-			be(sensor->fmt.height + sensor->ctrls.vblank->val),
-			be(sensor->fmt.width + sensor->ctrls.hblank->val),
-			be(x),
-			be(y),
-			be(x + sensor->fmt.width - 1),
-			be(y + sensor->fmt.height - 1),
-			be(sensor->fmt.width),
-			be(sensor->fmt.height)
-		};
-		return ar0521_write_regs(sensor, regs, ARRAY_SIZE(regs));
+		width = sensor->fmt.width;
+		height = sensor->fmt.height;
 	}
+
+	/* Center the image in the visible output window. */
+	x = clamp((AR0521_WIDTH_MAX - width) / 2,
+			AR0521_MIN_X_ADDR_START, AR0521_MAX_X_ADDR_END);
+	y = clamp(((AR0521_HEIGHT_MAX - height) / 2) & ~1,
+			AR0521_MIN_Y_ADDR_START, AR0521_MAX_Y_ADDR_END);
+
+
+
+	/* All dimensions are unsigned 12-bit integers */
+	__be16 regs[] = {
+		be(AR0521_REG_FRAME_LENGTH_LINES),
+		be(sensor->fmt.height + sensor->ctrls.vblank->val),
+		be(sensor->fmt.width + sensor->ctrls.hblank->val),
+		be(x),
+		be(y),
+		be(x + width - 1),
+		be(y + height - 1),
+		be(sensor->fmt.width),
+		be(sensor->fmt.height)
+	};
+	return ar0521_write_regs(sensor, regs, ARRAY_SIZE(regs));
+
 }
 
 static int ar0521_set_gains(struct ar0521_dev *sensor)
