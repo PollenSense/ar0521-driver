@@ -59,6 +59,8 @@
 #define AR0521_REG_ROW_SPEED			0x3016
 #define AR0521_REG_EXTRA_DELAY			0x3018
 #define AR0521_REG_RESET			0x301A
+#define AR0521_REG_IMAGE_ORIENTATION		0x301D
+#define AR0521_REG_PIXEL_ORDER			0x3024
 #define   AR0521_REG_RESET_DEFAULTS		  0x0238
 #define   AR0521_REG_RESET_GROUP_PARAM_HOLD	  0x8000
 #define   AR0521_REG_RESET_STREAM		  BIT(2)
@@ -112,6 +114,8 @@ struct ar0521_ctrls {
 	struct v4l2_ctrl *pixrate;
 	struct v4l2_ctrl *exposure;
 	struct v4l2_ctrl *test_pattern;
+	struct v4l2_ctrl *vflip;
+	struct v4l2_ctrl *hflip;
 };
 
 struct ar0521_dev {
@@ -630,6 +634,12 @@ static int ar0521_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = ar0521_write_reg(sensor, AR0521_REG_TEST_PATTERN_MODE,
 				       ctrl->val);
 		break;
+	case V4L2_CID_HFLIP:
+	case V4L2_CID_VFLIP:
+		ret = ar0521_write_reg(sensor, AR0521_REG_IMAGE_ORIENTATION,
+				       sensor->ctrls.hflip->val |
+				       sensor->ctrls.vflip->val << 1);
+		break;
 	default:
 		dev_err(&sensor->i2c_client->dev,
 			"Unsupported control %x\n", ctrl->id);
@@ -714,6 +724,15 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 					V4L2_CID_TEST_PATTERN,
 					ARRAY_SIZE(test_pattern_menu) - 1,
 					0, 0, test_pattern_menu);
+	ctrls->hflip = v4l2_ctrl_new_std(hdl, ops,
+					  V4L2_CID_HFLIP, 0, 1, 1, 0);
+	if (ctrls->hflip)
+		ctrls->hflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+
+	ctrls->vflip = v4l2_ctrl_new_std(hdl, ops,
+					  V4L2_CID_VFLIP, 0, 1, 1, 0);
+	if (ctrls->vflip)
+		ctrls->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 
 	if (hdl->error) {
 		ret = hdl->error;
