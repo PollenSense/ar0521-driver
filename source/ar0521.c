@@ -144,6 +144,7 @@ struct ar0521_dev {
 	struct media_pad pad;
 	struct clk *extclk;
 	u32 extclk_freq;
+	struct v4l2_rect crop;
 
 	struct regulator *supplies[ARRAY_SIZE(ar0521_supply_names)];
 	struct gpio_desc *reset_gpio;
@@ -260,6 +261,19 @@ static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u32  *val)
 	return 0;
 }
 
+static const struct v4l2_rect *
+__ar0521_get_pad_crop(struct ar0521_dev *ar0521, struct v4l2_subdev_pad_config *cfg,
+		      unsigned int pad, enum v4l2_subdev_format_whence which)
+{
+	switch (which) {
+	case V4L2_SUBDEV_FORMAT_TRY:
+		return v4l2_subdev_get_try_crop(&ar0521->sd, cfg, pad);
+	case V4L2_SUBDEV_FORMAT_ACTIVE:
+		return &ar0521->crop;
+	}
+
+	return NULL;
+}
 static int ar0521_set_geometry(struct ar0521_dev *sensor)
 {
 	u16 height, width, x, y;
@@ -810,8 +824,15 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 	struct v4l2_ctrl_handler *hdl = &ctrls->handler;
 	int max_vblank, max_hblank, exposure_max;
 	struct v4l2_ctrl *link_freq;
+	struct v4l2_rect crop = {
+			.left = 0,
+			.top = 0,
+			.width = AR0521_WIDTH_MAX,
+			.height = AR0521_HEIGHT_MAX,
+		};
 	int ret;
 
+	sensor->crop = crop;
 	v4l2_ctrl_handler_init(hdl, 32);
 
 	/* We can use our own mutex for the ctrl lock */
@@ -1172,6 +1193,42 @@ static int ar0521_enum_frame_size(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int ar0521_get_selection(struct v4l2_subdev *sd,
+				struct v4l2_subdev_pad_config *cfg,
+				struct v4l2_subdev_selection *sel)
+{
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP: {
+		struct ar0521_dev *ar0521 = to_ar0521_dev(sd);
+
+		mutex_lock(&ar0521->lock);
+		sel->r = *__ar0521_get_pad_crop(ar0521, cfg, sel->pad,
+						sel->which);
+		mutex_unlock(&ar0521->lock);
+
+		return 0;
+	}
+
+	case V4L2_SEL_TGT_NATIVE_SIZE:
+		sel->r.top = 0;
+		sel->r.left = 0;
+		sel->r.width = AR0521_NATIVE_WIDTH;
+		sel->r.height = AR0521_NATIVE_HEIGHT;
+
+		return 0;
+
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+		sel->r.top = 0;
+		sel->r.left = 0;
+		sel->r.width = AR0521_WIDTH_MAX;
+		sel->r.height = AR0521_HEIGHT_MAX;
+
+		return 0;
+	}
+
+	return -EINVAL;
+}
 static int ar0521_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -1198,6 +1255,7 @@ static const struct v4l2_subdev_video_ops ar0521_video_ops = {
 static const struct v4l2_subdev_pad_ops ar0521_pad_ops = {
 	.enum_mbus_code = ar0521_enum_mbus_code,
 	.enum_frame_size = ar0521_enum_frame_size,
+	.get_selection = ar0521_get_selection,
 	.get_fmt = ar0521_get_fmt,
 	.set_fmt = ar0521_set_fmt,
 };
