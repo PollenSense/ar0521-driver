@@ -120,6 +120,91 @@ static const s64 ar0521_link_frequencies[] = {
 	184000000,
 };
 
+/* Mode : resolution and related config&values */
+struct ar0521_mode {
+	/* Frame width */
+	unsigned int width;
+	/* Frame height */
+	unsigned int height;
+
+	/* Analog crop rectangle. */
+	struct v4l2_rect crop;
+
+	bool binning_enabled;
+
+};
+
+/* Mode configs */
+static const struct ar0521_mode supported_modes[] = {
+	{
+		.width = 2592,
+		.height = 1944,
+		.crop = {
+			.left = 6,
+			.top = 6,
+			.width = 2592,
+			.height = 1944
+		},
+		.binning_enabled = false,
+	},
+	{
+		.width = 1920,
+		.height = 1080,
+		.crop = {
+			.left = 342,
+			.top = 438,
+			.width = 1920,
+			.height = 1080
+		},
+		.binning_enabled = false,
+	},
+	/* 2x2 binning modes */
+	{
+		.width = 1296,
+		.height = 972,
+		.crop = {
+			.left = 6,
+			.top = 6,
+			.width = 2592,
+			.height = 1944
+		},
+		.binning_enabled = true,
+	},
+	{
+		.width = 1280,
+		.height = 960,
+		.crop = {
+			.left = 22,
+			.top = 18,
+			.width = 2560,
+			.height = 1920
+		},
+		.binning_enabled = true,
+	},
+	{
+		.width = 1280,
+		.height = 720,
+		.crop = {
+			.left = 22,
+			.top = 258,
+			.width = 2560,
+			.height = 1440
+		},
+		.binning_enabled = true,
+	},
+	{
+		.width = 640,
+		.height = 480,
+		.crop = {
+			.left = 662,
+			.top = 498,
+			.width = 1280,
+			.height = 960
+		},
+		.binning_enabled = true,
+	},
+};
+
 struct ar0521_ctrls {
 	struct v4l2_ctrl_handler handler;
 	struct {
@@ -144,6 +229,7 @@ struct ar0521_dev {
 	struct media_pad pad;
 	struct clk *extclk;
 	u32 extclk_freq;
+	struct v4l2_rect crop;
 
 	struct regulator *supplies[ARRAY_SIZE(ar0521_supply_names)];
 	struct gpio_desc *reset_gpio;
@@ -161,6 +247,8 @@ struct ar0521_dev {
 		u16 mult2;
 		u16 vt_pix;
 	} pll;
+
+	const struct ar0521_mode *mode;
 
 	bool streaming;
 };
@@ -260,32 +348,32 @@ static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u32  *val)
 	return 0;
 }
 
+static const struct v4l2_rect *
+__ar0521_get_pad_crop(struct ar0521_dev *ar0521, struct v4l2_subdev_pad_config *cfg,
+		      unsigned int pad, enum v4l2_subdev_format_whence which)
+{
+	switch (which) {
+	case V4L2_SUBDEV_FORMAT_TRY:
+		return v4l2_subdev_get_try_crop(&ar0521->sd, cfg, pad);
+	case V4L2_SUBDEV_FORMAT_ACTIVE:
+		return &ar0521->mode->crop;
+	}
+
+	return NULL;
+}
 static int ar0521_set_geometry(struct ar0521_dev *sensor)
 {
 	u16 height, width, x, y;
+	x = sensor->mode->crop.left;
+	y = sensor->mode->crop.top;
+	height = sensor->mode->crop.height;
+	width = sensor->mode->crop.width;
 
-	// Binning is possible only if required height and width is half of max height and width
-	if (sensor->fmt.height <= (AR0521_HEIGHT_MAX / 2) && sensor->fmt.width <= (AR0521_WIDTH_MAX / 2)) {
-		// Enable binning horizontal + Vertical binning with 2x2
+	if (sensor->mode->binning_enabled) {
 		ar0521_write_reg(sensor, AR0521_REG_READ_MODE, 0x8C3);
-
-		width = sensor->fmt.width * 2;
-		height = sensor->fmt.height * 2;
 	} else {
-		// For other resolution use normal operation i.e windowing
 		ar0521_write_reg(sensor, AR0521_REG_READ_MODE, 0x41);
-
-		width = sensor->fmt.width;
-		height = sensor->fmt.height;
 	}
-
-	/* Center the image in the visible output window. */
-	x = clamp((AR0521_WIDTH_MAX - width) / 2,
-			AR0521_MIN_X_ADDR_START, AR0521_MAX_X_ADDR_END);
-	y = clamp(((AR0521_HEIGHT_MAX - height) / 2) & ~1,
-			AR0521_MIN_Y_ADDR_START, AR0521_MAX_Y_ADDR_END);
-
-
 
 	/* All dimensions are unsigned 12-bit integers */
 	__be16 regs[] = {
@@ -528,12 +616,12 @@ static int ar0521_get_fmt(struct v4l2_subdev *sd,
 
 	mutex_lock(&sensor->lock);
 
-	if (format->which == V4L2_SUBDEV_FORMAT_TRY)
+	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
 		fmt = v4l2_subdev_get_try_format(&sensor->sd, cfg, format->pad
 						 /* pad */);
-	else
+	} else {
 		fmt = &sensor->fmt;
-
+	}
 	format->format = *fmt;
 
 	mutex_unlock(&sensor->lock);
@@ -545,9 +633,18 @@ static int ar0521_set_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_format *format)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
+	const struct ar0521_mode *mode;
 	int max_vblank, max_hblank, exposure_max;
 	int ret;
 
+	mode = v4l2_find_nearest_size(supported_modes,
+				      ARRAY_SIZE(supported_modes),
+				      width, height,
+				      format->format.width,
+				      format->format.height);
+
+	format->format.width = mode->width;
+	format->format.height = mode->height;
 	ar0521_adj_fmt(&format->format);
 
 	mutex_lock(&sensor->lock);
@@ -563,6 +660,7 @@ static int ar0521_set_fmt(struct v4l2_subdev *sd,
 		return 0;
 	}
 
+	sensor->mode = mode;
 	sensor->fmt = format->format;
 	ar0521_calc_pll(sensor);
 
@@ -1158,20 +1256,56 @@ static int ar0521_enum_frame_size(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_pad_config *cfg,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
-	if (fse->index)
+	if (fse->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
 	if (fse->code != MEDIA_BUS_FMT_SGRBG8_1X8)
 		return -EINVAL;
 
-	fse->min_width = AR0521_WIDTH_MIN;
-	fse->max_width = AR0521_WIDTH_MAX;
-	fse->min_height = AR0521_HEIGHT_MIN;
-	fse->max_height = AR0521_HEIGHT_MAX;
+	fse->min_width = supported_modes[fse->index].width;
+	fse->max_width = fse->min_width;
+	fse->min_height = supported_modes[fse->index].height;
+	fse->max_height = fse->min_height;
 
 	return 0;
 }
 
+static int ar0521_get_selection(struct v4l2_subdev *sd,
+				struct v4l2_subdev_pad_config *cfg,
+				struct v4l2_subdev_selection *sel)
+{
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP: {
+		struct ar0521_dev *ar0521 = to_ar0521_dev(sd);
+
+		mutex_lock(&ar0521->lock);
+		sel->r = *__ar0521_get_pad_crop(ar0521, cfg, sel->pad,
+						sel->which);
+		mutex_unlock(&ar0521->lock);
+
+		return 0;
+	}
+
+	case V4L2_SEL_TGT_NATIVE_SIZE:
+		sel->r.top = 0;
+		sel->r.left = 0;
+		sel->r.width = AR0521_NATIVE_WIDTH;
+		sel->r.height = AR0521_NATIVE_HEIGHT;
+
+		return 0;
+
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+		sel->r.top = 0;
+		sel->r.left = 0;
+		sel->r.width = AR0521_WIDTH_MAX;
+		sel->r.height = AR0521_HEIGHT_MAX;
+
+		return 0;
+	}
+
+	return -EINVAL;
+}
 static int ar0521_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -1198,6 +1332,7 @@ static const struct v4l2_subdev_video_ops ar0521_video_ops = {
 static const struct v4l2_subdev_pad_ops ar0521_pad_ops = {
 	.enum_mbus_code = ar0521_enum_mbus_code,
 	.enum_frame_size = ar0521_enum_frame_size,
+	.get_selection = ar0521_get_selection,
 	.get_fmt = ar0521_get_fmt,
 	.set_fmt = ar0521_set_fmt,
 };
@@ -1246,8 +1381,11 @@ static int ar0521_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	sensor->i2c_client = client;
-	sensor->fmt.width = AR0521_WIDTH_MAX;
-	sensor->fmt.height = AR0521_HEIGHT_MAX;
+
+	/* Set default mode to max resolution */
+	sensor->mode = &supported_modes[0];
+	sensor->fmt.width = supported_modes[0].width;
+	sensor->fmt.height = supported_modes[0].height;
 
 	endpoint = fwnode_graph_get_endpoint_by_id(dev_fwnode(dev), 0, 0,
 						   FWNODE_GRAPH_ENDPOINT_NEXT);
