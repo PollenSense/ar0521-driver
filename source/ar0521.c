@@ -59,6 +59,8 @@
 #define AR0521_REG_ROW_SPEED			0x3016
 #define AR0521_REG_EXTRA_DELAY			0x3018
 #define AR0521_REG_RESET			0x301A
+#define AR0521_REG_IMAGE_ORIENTATION		0x301D
+#define AR0521_REG_PIXEL_ORDER			0x3024
 #define   AR0521_REG_RESET_DEFAULTS		  0x0238
 #define   AR0521_REG_RESET_GROUP_PARAM_HOLD	  0x8000
 #define   AR0521_REG_RESET_STREAM		  BIT(2)
@@ -86,6 +88,26 @@
 
 #define AR0521_REG_READ_MODE	0x3040
 
+#define AR0521_REG_ANA_GAIN_CODE_GREENR		0x0206
+#define AR0521_REG_ANA_GAIN_CODE_RED		0x0208
+#define AR0521_REG_ANA_GAIN_CODE_BLUE		0x020A
+#define AR0521_REG_ANA_GAIN_CODE_GREENB		0x020C
+
+#define AR0521_REG_DIGITAL_GAIN_CODE_GREENR	0x020E
+#define AR0521_REG_DIGITAL_GAIN_CODE_RED	0x0210
+#define AR0521_REG_DIGITAL_GAIN_CODE_BLUE	0x0212
+#define AR0521_REG_DIGITAL_GAIN_CODE_GREENB	0x0214
+
+/* AR0521 custom control IDs */
+#define V4L2_CID_ANALOGUE_GAIN_GREENR	(V4L2_CID_BASE + 0x1000)
+#define V4L2_CID_ANALOGUE_GAIN_RED	(V4L2_CID_BASE + 0x1001)
+#define V4L2_CID_ANALOGUE_GAIN_BLUE	(V4L2_CID_BASE + 0x1002)
+#define V4L2_CID_ANALOGUE_GAIN_GREENB	(V4L2_CID_BASE + 0x1003)
+#define V4L2_CID_DIGITAL_GAIN_GREENR	(V4L2_CID_BASE + 0x1004)
+#define V4L2_CID_DIGITAL_GAIN_RED	(V4L2_CID_BASE + 0x1005)
+#define V4L2_CID_DIGITAL_GAIN_BLUE	(V4L2_CID_BASE + 0x1006)
+#define V4L2_CID_DIGITAL_GAIN_GREENB	(V4L2_CID_BASE + 0x1007)
+
 #define be		cpu_to_be16
 
 static const char * const ar0521_supply_names[] = {
@@ -112,6 +134,8 @@ struct ar0521_ctrls {
 	struct v4l2_ctrl *pixrate;
 	struct v4l2_ctrl *exposure;
 	struct v4l2_ctrl *test_pattern;
+	struct v4l2_ctrl *vflip;
+	struct v4l2_ctrl *hflip;
 };
 
 struct ar0521_dev {
@@ -630,6 +654,44 @@ static int ar0521_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = ar0521_write_reg(sensor, AR0521_REG_TEST_PATTERN_MODE,
 				       ctrl->val);
 		break;
+	case V4L2_CID_HFLIP:
+	case V4L2_CID_VFLIP:
+		ret = ar0521_write_reg(sensor, AR0521_REG_IMAGE_ORIENTATION,
+				       sensor->ctrls.hflip->val |
+				       sensor->ctrls.vflip->val << 1);
+		break;
+	case V4L2_CID_ANALOGUE_GAIN_GREENR:
+		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENR,
+				       ctrl->val);
+		break;
+	case V4L2_CID_ANALOGUE_GAIN_RED:
+		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_RED,
+				       ctrl->val);
+		break;
+	case V4L2_CID_ANALOGUE_GAIN_BLUE:
+		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_BLUE,
+				       ctrl->val);
+		break;
+	case V4L2_CID_ANALOGUE_GAIN_GREENB:
+		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENB,
+				       ctrl->val);
+		break;
+	case V4L2_CID_DIGITAL_GAIN_GREENR:
+		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_CODE_GREENR,
+				       min(2047, ctrl->val << 7)); /* Gain = Register Value / 128, so register value = gain * 128 */
+		break;
+	case V4L2_CID_DIGITAL_GAIN_RED:
+		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_CODE_RED,
+				       min(2047, ctrl->val << 7)); /* Gain = Register Value / 128, so register value = gain * 128 */
+		break;
+	case V4L2_CID_DIGITAL_GAIN_BLUE:
+		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_CODE_BLUE,
+				       min(2047, ctrl->val << 7)); /* Gain = Register Value / 128, so register value = gain * 128 */
+		break;
+	case V4L2_CID_DIGITAL_GAIN_GREENB:
+		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_CODE_GREENB,
+				       min(2047, ctrl->val << 7)); /* Gain = Register Value / 128, so register value = gain * 128 */
+		break;
 	default:
 		dev_err(&sensor->i2c_client->dev,
 			"Unsupported control %x\n", ctrl->id);
@@ -650,6 +712,95 @@ static const char * const test_pattern_menu[] = {
 	"Solid color",
 	"Color bars",
 	"Faded color bars"
+};
+
+/* -------------------------- custom ctrls ---------------------------------- */
+static const struct v4l2_ctrl_config ar0521_analog_gain_greenr = {
+	.ops = &ar0521_ctrl_ops,
+	.id = V4L2_CID_ANALOGUE_GAIN_GREENR,
+	.name = "Analog Gain GreenR",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 32,
+	.step = 1,
+	.def = 4,
+};
+
+static const struct v4l2_ctrl_config ar0521_analog_gain_red = {
+	.ops = &ar0521_ctrl_ops,
+	.id = V4L2_CID_ANALOGUE_GAIN_RED,
+	.name = "Analog Gain Red",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 32,
+	.step = 1,
+	.def = 4,
+};
+
+static const struct v4l2_ctrl_config ar0521_analog_gain_blue = {
+	.ops = &ar0521_ctrl_ops,
+	.id = V4L2_CID_ANALOGUE_GAIN_BLUE,
+	.name = "Analog Gain Blue",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 32,
+	.step = 1,
+	.def = 4,
+};
+
+static const struct v4l2_ctrl_config ar0521_analog_gain_greenb = {
+	.ops = &ar0521_ctrl_ops,
+	.id = V4L2_CID_ANALOGUE_GAIN_GREENB,
+	.name = "Analog Gain GreenB",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 32,
+	.step = 1,
+	.def = 4,
+};
+
+static const struct v4l2_ctrl_config ar0521_digital_gain_greenr = {
+	.ops = &ar0521_ctrl_ops,
+	.id = V4L2_CID_DIGITAL_GAIN_GREENR,
+	.name = "Digital Gain GreenR",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 16,
+	.step = 1,
+	.def = 2,
+};
+
+static const struct v4l2_ctrl_config ar0521_digital_gain_red = {
+	.ops = &ar0521_ctrl_ops,
+	.id = V4L2_CID_DIGITAL_GAIN_RED,
+	.name = "Digital Gain Red",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 16,
+	.step = 1,
+	.def = 2,
+};
+
+static const struct v4l2_ctrl_config ar0521_digital_gain_blue = {
+	.ops = &ar0521_ctrl_ops,
+	.id = V4L2_CID_DIGITAL_GAIN_BLUE,
+	.name = "Digital Gain Blue",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 16,
+	.step = 1,
+	.def = 2,
+};
+
+static const struct v4l2_ctrl_config ar0521_digital_gain_greenb = {
+	.ops = &ar0521_ctrl_ops,
+	.id = V4L2_CID_DIGITAL_GAIN_GREENB,
+	.name = "Digital Gain GreenB",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0,
+	.max = 16,
+	.step = 1,
+	.def = 2,
 };
 
 static int ar0521_init_controls(struct ar0521_dev *sensor)
@@ -714,6 +865,24 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 					V4L2_CID_TEST_PATTERN,
 					ARRAY_SIZE(test_pattern_menu) - 1,
 					0, 0, test_pattern_menu);
+	ctrls->hflip = v4l2_ctrl_new_std(hdl, ops,
+					  V4L2_CID_HFLIP, 0, 1, 1, 0);
+	if (ctrls->hflip)
+		ctrls->hflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+
+	ctrls->vflip = v4l2_ctrl_new_std(hdl, ops,
+					  V4L2_CID_VFLIP, 0, 1, 1, 0);
+	if (ctrls->vflip)
+		ctrls->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+
+	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_greenr, NULL);
+	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_red, NULL);
+	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_blue, NULL);
+	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_greenb, NULL);
+	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_greenr, NULL);
+	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_red, NULL);
+	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_blue, NULL);
+	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_greenb, NULL);
 
 	if (hdl->error) {
 		ret = hdl->error;
