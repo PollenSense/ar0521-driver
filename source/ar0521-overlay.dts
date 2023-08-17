@@ -46,7 +46,6 @@
 		target = <&csi1>;
 		csi: __overlay__ {
 			status = "okay";
-			brcm,media-controller;
 			brcm,num-data-lanes = <0x02>;
 
 			port {
@@ -90,7 +89,6 @@
 	__overrides__ {
 		rotation = <&ar0521>,"rotation:0";
 		orientation = <&ar0521>,"orientation:0";
-		media-controller = <&csi>,"brcm,media-controller?";
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&reg_frag>, "target:0=",<&cam0_reg>,
