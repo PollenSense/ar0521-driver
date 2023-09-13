@@ -9,6 +9,7 @@
 #include <linux/delay.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
+#include <linux/version.h>
 
 
 #include <media/v4l2-ctrls.h>
@@ -349,8 +350,15 @@ static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u32  *val)
 }
 
 static const struct v4l2_rect *
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
 __ar0521_get_pad_crop(struct ar0521_dev *ar0521, struct v4l2_subdev_pad_config *cfg,
 		      unsigned int pad, enum v4l2_subdev_format_whence which)
+#else
+__ar0521_get_pad_crop(struct ar0521_dev *ar0521, struct v4l2_subdev_state *state,
+		      unsigned int pad, enum v4l2_subdev_format_whence which)
+
+#endif
+
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
@@ -608,7 +616,11 @@ static void ar0521_adj_fmt(struct v4l2_mbus_framefmt *fmt)
 }
 
 static int ar0521_get_fmt(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
 			  struct v4l2_subdev_pad_config *cfg,
+#else
+			  struct v4l2_subdev_state *state,
+#endif
 			  struct v4l2_subdev_format *format)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -617,8 +629,13 @@ static int ar0521_get_fmt(struct v4l2_subdev *sd,
 	mutex_lock(&sensor->lock);
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
 		fmt = v4l2_subdev_get_try_format(&sensor->sd, cfg, format->pad
 						 /* pad */);
+#else
+		fmt = v4l2_subdev_get_try_format(&sensor->sd, state, format->pad
+						 /* pad */);
+#endif
 	} else {
 		fmt = &sensor->fmt;
 	}
@@ -629,7 +646,11 @@ static int ar0521_get_fmt(struct v4l2_subdev *sd,
 }
 
 static int ar0521_set_fmt(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
 			  struct v4l2_subdev_pad_config *cfg,
+#else
+			  struct v4l2_subdev_state *state,
+#endif
 			  struct v4l2_subdev_format *format)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -652,7 +673,11 @@ static int ar0521_set_fmt(struct v4l2_subdev *sd,
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
 		struct v4l2_mbus_framefmt *fmt;
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
 		fmt = v4l2_subdev_get_try_format(sd, cfg, format->pad /* pad */);
+#else
+		fmt = v4l2_subdev_get_try_format(sd, state, format->pad /* pad */);
+#endif
 		*fmt = format->format;
 
 		mutex_unlock(&sensor->lock);
@@ -972,7 +997,7 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 					  V4L2_CID_VFLIP, 0, 1, 1, 0);
 	if (ctrls->vflip)
 		ctrls->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
-
+#if 0
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_greenr, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_red, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_blue, NULL);
@@ -981,7 +1006,7 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_red, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_blue, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_greenb, NULL);
-
+#endif
 	if (hdl->error) {
 		ret = hdl->error;
 		goto free_ctrls;
@@ -1240,7 +1265,11 @@ off:
 }
 
 static int ar0521_enum_mbus_code(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_pad_config *cfg,
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
+			  	 struct v4l2_subdev_pad_config *cfg,
+#else
+			  	 struct v4l2_subdev_state *state,
+#endif
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -1253,7 +1282,11 @@ static int ar0521_enum_mbus_code(struct v4l2_subdev *sd,
 }
 
 static int ar0521_enum_frame_size(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_pad_config *cfg,
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
+			  	  struct v4l2_subdev_pad_config *cfg,
+#else
+			  	  struct v4l2_subdev_state *state,
+#endif
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
 	if (fse->index >= ARRAY_SIZE(supported_modes))
@@ -1271,7 +1304,11 @@ static int ar0521_enum_frame_size(struct v4l2_subdev *sd,
 }
 
 static int ar0521_get_selection(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
 				struct v4l2_subdev_pad_config *cfg,
+#else
+				struct v4l2_subdev_state *state,
+#endif
 				struct v4l2_subdev_selection *sel)
 {
 	switch (sel->target) {
@@ -1279,8 +1316,13 @@ static int ar0521_get_selection(struct v4l2_subdev *sd,
 		struct ar0521_dev *ar0521 = to_ar0521_dev(sd);
 
 		mutex_lock(&ar0521->lock);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
 		sel->r = *__ar0521_get_pad_crop(ar0521, cfg, sel->pad,
 						sel->which);
+#else
+		sel->r = *__ar0521_get_pad_crop(ar0521, state, sel->pad,
+						sel->which);
+#endif
 		mutex_unlock(&ar0521->lock);
 
 		return 0;
