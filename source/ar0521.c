@@ -362,7 +362,7 @@ __ar0521_get_pad_crop(struct ar0521_dev *ar0521, struct v4l2_subdev_state *state
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&ar0521->sd, state, pad);
+		return v4l2_subdev_get_try_crop(&ar0521->sd, cfg, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &ar0521->mode->crop;
 	}
