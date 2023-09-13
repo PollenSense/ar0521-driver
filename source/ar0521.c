@@ -362,7 +362,11 @@ __ar0521_get_pad_crop(struct ar0521_dev *ar0521, struct v4l2_subdev_state *state
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
+		return v4l2_subdev_get_try_crop(&ar0521->sd, cfg, pad);
+#else
 		return v4l2_subdev_get_try_crop(&ar0521->sd, state, pad);
+#endif
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &ar0521->mode->crop;
 	}
