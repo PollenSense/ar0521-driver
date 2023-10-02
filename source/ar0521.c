@@ -1001,7 +1001,7 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 					  V4L2_CID_VFLIP, 0, 1, 1, 0);
 	if (ctrls->vflip)
 		ctrls->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
-
+#if 0
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_greenr, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_red, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_blue, NULL);
@@ -1010,7 +1010,7 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_red, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_blue, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_greenb, NULL);
-
+#endif
 	if (hdl->error) {
 		ret = hdl->error;
 		goto free_ctrls;
