@@ -94,10 +94,10 @@
 #define AR0521_REG_ANA_GAIN_CODE_BLUE		0x020A
 #define AR0521_REG_ANA_GAIN_CODE_GREENB		0x020C
 
-#define AR0521_REG_DIGITAL_GAIN_CODE_GREENR	0x020E
-#define AR0521_REG_DIGITAL_GAIN_CODE_RED	0x0210
-#define AR0521_REG_DIGITAL_GAIN_CODE_BLUE	0x0212
-#define AR0521_REG_DIGITAL_GAIN_CODE_GREENB	0x0214
+#define AR0521_REG_DIGITAL_GAIN_GREENR	0x3032
+#define AR0521_REG_DIGITAL_GAIN_RED	0x3034
+#define AR0521_REG_DIGITAL_GAIN_BLUE	0x3036
+#define AR0521_REG_DIGITAL_GAIN_GREENB	0x3038
 
 /* AR0521 custom control IDs */
 #define V4L2_CID_ANALOGUE_GAIN_GREENR	(V4L2_CID_BASE + 0x1000)
@@ -362,7 +362,11 @@ __ar0521_get_pad_crop(struct ar0521_dev *ar0521, struct v4l2_subdev_state *state
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
 		return v4l2_subdev_get_try_crop(&ar0521->sd, cfg, pad);
+#else
+		return v4l2_subdev_get_try_crop(&ar0521->sd, state, pad);
+#endif
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &ar0521->mode->crop;
 	}
@@ -800,20 +804,20 @@ static int ar0521_s_ctrl(struct v4l2_ctrl *ctrl)
 				       ctrl->val);
 		break;
 	case V4L2_CID_DIGITAL_GAIN_GREENR:
-		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_CODE_GREENR,
-				       min(2047, ctrl->val << 7)); /* Gain = Register Value / 128, so register value = gain * 128 */
+		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENR,
+				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
 		break;
 	case V4L2_CID_DIGITAL_GAIN_RED:
-		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_CODE_RED,
-				       min(2047, ctrl->val << 7)); /* Gain = Register Value / 128, so register value = gain * 128 */
+		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_RED,
+				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
 		break;
 	case V4L2_CID_DIGITAL_GAIN_BLUE:
-		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_CODE_BLUE,
-				       min(2047, ctrl->val << 7)); /* Gain = Register Value / 128, so register value = gain * 128 */
+		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_BLUE,
+				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
 		break;
 	case V4L2_CID_DIGITAL_GAIN_GREENB:
-		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_CODE_GREENB,
-				       min(2047, ctrl->val << 7)); /* Gain = Register Value / 128, so register value = gain * 128 */
+		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENB,
+				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
 		break;
 	default:
 		dev_err(&sensor->i2c_client->dev,
@@ -888,9 +892,9 @@ static const struct v4l2_ctrl_config ar0521_digital_gain_greenr = {
 	.name = "Digital Gain GreenR",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
-	.max = 16,
+	.max = 2047,
 	.step = 1,
-	.def = 2,
+	.def = 256,
 };
 
 static const struct v4l2_ctrl_config ar0521_digital_gain_red = {
@@ -899,9 +903,9 @@ static const struct v4l2_ctrl_config ar0521_digital_gain_red = {
 	.name = "Digital Gain Red",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
-	.max = 16,
+	.max = 2047,
 	.step = 1,
-	.def = 2,
+	.def = 384,
 };
 
 static const struct v4l2_ctrl_config ar0521_digital_gain_blue = {
@@ -910,9 +914,9 @@ static const struct v4l2_ctrl_config ar0521_digital_gain_blue = {
 	.name = "Digital Gain Blue",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
-	.max = 16,
+	.max = 2047,
 	.step = 1,
-	.def = 2,
+	.def = 384,
 };
 
 static const struct v4l2_ctrl_config ar0521_digital_gain_greenb = {
@@ -921,9 +925,9 @@ static const struct v4l2_ctrl_config ar0521_digital_gain_greenb = {
 	.name = "Digital Gain GreenB",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
-	.max = 16,
+	.max = 2047,
 	.step = 1,
-	.def = 2,
+	.def = 256,
 };
 
 static int ar0521_init_controls(struct ar0521_dev *sensor)
@@ -997,7 +1001,6 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 					  V4L2_CID_VFLIP, 0, 1, 1, 0);
 	if (ctrls->vflip)
 		ctrls->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
-#if 0
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_greenr, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_red, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_blue, NULL);
@@ -1006,7 +1009,6 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_red, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_blue, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_greenb, NULL);
-#endif
 	if (hdl->error) {
 		ret = hdl->error;
 		goto free_ctrls;
