@@ -315,7 +315,7 @@ static int ar0521_write_reg(struct ar0521_dev *sensor, u16 reg, u16 val)
 	return ar0521_write_regs(sensor, buf, 2);
 }
 
-static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u32  *val)
+static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u16  *val)
 {
 	struct i2c_client *client = sensor->i2c_client;
 	struct i2c_msg msg[2];
@@ -335,7 +335,7 @@ static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u32  *val)
 	msg[1].addr = client->addr;
 	msg[1].flags = I2C_M_RD;
 	msg[1].buf = buf;
-	msg[1].len = 1;
+	msg[1].len = 2;
 
 	ret = i2c_transfer(client->adapter, msg,2);
 	if (ret < 0) {
@@ -344,7 +344,7 @@ static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u32  *val)
 		return ret;
 	}
 
-	*val = buf[0];
+	memcpy(val, buf, 2);
 
 	return 0;
 }
@@ -741,6 +741,7 @@ static int ar0521_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
 	int exp_max;
 	int ret;
+	u16 readback_val;
 
 	/* v4l2_ctrl_lock() locks our own mutex */
 
@@ -790,34 +791,67 @@ static int ar0521_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_ANALOGUE_GAIN_GREENR:
 		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENR,
 				       ctrl->val);
+		readback_val = 0;
+		// Readback register and confirm if expected value is written or not
+		ar0521_read_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENR, &readback_val);
+		dev_err(&sensor->i2c_client->dev, "a_greenr Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
+
 		break;
 	case V4L2_CID_ANALOGUE_GAIN_RED:
 		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_RED,
 				       ctrl->val);
+		readback_val = 0;
+		// Readback register and confirm if expected value is written or not
+		ar0521_read_reg(sensor, AR0521_REG_ANA_GAIN_CODE_RED, &readback_val);
+		dev_err(&sensor->i2c_client->dev, "a_red Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
 		break;
 	case V4L2_CID_ANALOGUE_GAIN_BLUE:
 		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_BLUE,
 				       ctrl->val);
+		readback_val = 0;
+		// Readback register and confirm if expected value is written or not
+		ar0521_read_reg(sensor, AR0521_REG_ANA_GAIN_CODE_BLUE, &readback_val);
+		dev_err(&sensor->i2c_client->dev, "a_blue Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
 		break;
 	case V4L2_CID_ANALOGUE_GAIN_GREENB:
 		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENB,
 				       ctrl->val);
+		readback_val = 0;
+		// Readback register and confirm if expected value is written or not
+		ar0521_read_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENB, &readback_val);
+		dev_err(&sensor->i2c_client->dev, "a_greenb Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
 		break;
 	case V4L2_CID_DIGITAL_GAIN_GREENR:
 		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENR,
 				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
+		readback_val = 0;
+		// Readback register and confirm if expected value is written or not
+		ar0521_read_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENR, &readback_val);
+		dev_err(&sensor->i2c_client->dev, "d_greenr Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
 		break;
 	case V4L2_CID_DIGITAL_GAIN_RED:
 		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_RED,
 				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
+		readback_val = 0;
+		// Readback register and confirm if expected value is written or not
+		ar0521_read_reg(sensor, AR0521_REG_DIGITAL_GAIN_RED, &readback_val);
+		dev_err(&sensor->i2c_client->dev, "d_red Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
 		break;
 	case V4L2_CID_DIGITAL_GAIN_BLUE:
 		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_BLUE,
 				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
+		readback_val = 0;
+		// Readback register and confirm if expected value is written or not
+		ar0521_read_reg(sensor, AR0521_REG_DIGITAL_GAIN_BLUE, &readback_val);
+		dev_err(&sensor->i2c_client->dev, "d_blue Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
 		break;
 	case V4L2_CID_DIGITAL_GAIN_GREENB:
 		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENB,
 				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
+		readback_val = 0;
+		// Readback register and confirm if expected value is written or not
+		ar0521_read_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENB, &readback_val);
+		dev_err(&sensor->i2c_client->dev, "d_greenb Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
 		break;
 	default:
 		dev_err(&sensor->i2c_client->dev,
@@ -893,7 +927,7 @@ static const struct v4l2_ctrl_config ar0521_digital_gain_greenr = {
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
 	.max = 2047,
-	.step = 1,
+	.step = 4,
 	.def = 256,
 };
 
@@ -904,7 +938,7 @@ static const struct v4l2_ctrl_config ar0521_digital_gain_red = {
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
 	.max = 2047,
-	.step = 1,
+	.step = 4,
 	.def = 384,
 };
 
@@ -915,7 +949,7 @@ static const struct v4l2_ctrl_config ar0521_digital_gain_blue = {
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
 	.max = 2047,
-	.step = 1,
+	.step = 4,
 	.def = 384,
 };
 
@@ -926,7 +960,7 @@ static const struct v4l2_ctrl_config ar0521_digital_gain_greenb = {
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
 	.max = 2047,
-	.step = 1,
+	.step = 4,
 	.def = 256,
 };
 
@@ -1001,7 +1035,7 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 					  V4L2_CID_VFLIP, 0, 1, 1, 0);
 	if (ctrls->vflip)
 		ctrls->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
-#if 0
+#if 1
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_greenr, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_red, NULL);
 	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_blue, NULL);
