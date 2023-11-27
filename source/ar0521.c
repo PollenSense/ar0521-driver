@@ -76,6 +76,9 @@
 #define AR0521_REG_GREEN2_GAIN			0x305C
 #define AR0521_REG_GLOBAL_GAIN			0x305E
 
+#define DIGITAL_GAIN_MASK			0xFF80
+#define ANALOG_GAIN_MASK			0x7F
+
 #define AR0521_REG_HISPI_TEST_MODE		0x3066
 #define AR0521_REG_HISPI_TEST_MODE_LP11		  0x0004
 
@@ -88,26 +91,6 @@
 #define AR0521_REG_HISPI_CONTROL_STATUS_FRAMER_TEST_MODE_ENABLE 0x80
 
 #define AR0521_REG_READ_MODE	0x3040
-
-#define AR0521_REG_ANA_GAIN_CODE_GREENR		0x0206
-#define AR0521_REG_ANA_GAIN_CODE_RED		0x0208
-#define AR0521_REG_ANA_GAIN_CODE_BLUE		0x020A
-#define AR0521_REG_ANA_GAIN_CODE_GREENB		0x020C
-
-#define AR0521_REG_DIGITAL_GAIN_GREENR	0x3032
-#define AR0521_REG_DIGITAL_GAIN_RED	0x3034
-#define AR0521_REG_DIGITAL_GAIN_BLUE	0x3036
-#define AR0521_REG_DIGITAL_GAIN_GREENB	0x3038
-
-/* AR0521 custom control IDs */
-#define V4L2_CID_ANALOGUE_GAIN_GREENR	(V4L2_CID_BASE + 0x1000)
-#define V4L2_CID_ANALOGUE_GAIN_RED	(V4L2_CID_BASE + 0x1001)
-#define V4L2_CID_ANALOGUE_GAIN_BLUE	(V4L2_CID_BASE + 0x1002)
-#define V4L2_CID_ANALOGUE_GAIN_GREENB	(V4L2_CID_BASE + 0x1003)
-#define V4L2_CID_DIGITAL_GAIN_GREENR	(V4L2_CID_BASE + 0x1004)
-#define V4L2_CID_DIGITAL_GAIN_RED	(V4L2_CID_BASE + 0x1005)
-#define V4L2_CID_DIGITAL_GAIN_BLUE	(V4L2_CID_BASE + 0x1006)
-#define V4L2_CID_DIGITAL_GAIN_GREENB	(V4L2_CID_BASE + 0x1007)
 
 #define be		cpu_to_be16
 
@@ -212,6 +195,7 @@ struct ar0521_ctrls {
 		struct v4l2_ctrl *gain;
 		struct v4l2_ctrl *red_balance;
 		struct v4l2_ctrl *blue_balance;
+		struct v4l2_ctrl *analogue_gain;
 	};
 	struct {
 		struct v4l2_ctrl *hblank;
@@ -344,7 +328,7 @@ static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u16  *val)
 		return ret;
 	}
 
-	memcpy(val, buf, 2);
+	*val = (u16)buf[0] << 8 | buf[1];
 
 	return 0;
 }
@@ -406,15 +390,15 @@ static int ar0521_set_geometry(struct ar0521_dev *sensor)
 static int ar0521_set_gains(struct ar0521_dev *sensor)
 {
 	int green = sensor->ctrls.gain->val;
-	int red = max(green + sensor->ctrls.red_balance->val, 0);
-	int blue = max(green + sensor->ctrls.blue_balance->val, 0);
-	unsigned int gain = min(red, min(green, blue));
-	unsigned int analog = min(gain, 64u); /* range is 0 - 127 */
+	int red = sensor->ctrls.red_balance->val;
+	int blue = sensor->ctrls.blue_balance->val;
+	int analog = sensor->ctrls.analogue_gain->val;
 	__be16 regs[5];
 
-	red   = min(red   - analog + 64, 511u);
-	green = min(green - analog + 64, 511u);
-	blue  = min(blue  - analog + 64, 511u);
+	red   = min(red   , 511u);
+	green = min(green , 511u);
+	blue  = min(blue  , 511u);
+	analog = min(analog, 127);
 	regs[0] = be(AR0521_REG_GREEN1_GAIN);
 	regs[1] = be(green << 7 | analog);
 	regs[2] = be(blue  << 7 | analog);
@@ -423,7 +407,42 @@ static int ar0521_set_gains(struct ar0521_dev *sensor)
 
 	return ar0521_write_regs(sensor, regs, ARRAY_SIZE(regs));
 }
+#if 0
+static int ar0521_set_gains(struct ar0521_dev *sensor)
+{
+	int green1 = sensor->ctrls.gain->val;
+	int green2 = sensor->ctrls.gain->val;
+	int red = sensor->ctrls.red_balance->val;
+	int blue = sensor->ctrls.blue_balance->val;
+	int ret;
+	u16 readback_val;
+	__be16 regs[5];
 
+	readback_val = 0;
+	ret = ar0521_read_reg(sensor, 0x305A, &readback_val);
+	red = (readback_val & (u16)~DIGITAL_GAIN_MASK) | (red << 7);
+
+	readback_val = 0;
+	ret = ar0521_read_reg(sensor, 0x3058, &readback_val);
+	blue = (readback_val & (u16)~DIGITAL_GAIN_MASK) | (blue << 7);
+
+	readback_val = 0;
+	ret = ar0521_read_reg(sensor, 0x3056, &readback_val);
+	green1 = (readback_val & (u16)~DIGITAL_GAIN_MASK) | (green1 << 7);
+
+	readback_val = 0;
+	ret = ar0521_read_reg(sensor, 0x305C, &readback_val);
+	green2 = (readback_val & (u16)~DIGITAL_GAIN_MASK) | (green1 << 7);
+
+	regs[0] = be(AR0521_REG_GREEN1_GAIN);
+	regs[1] = be(green1);
+	regs[2] = be(blue);
+	regs[3] = be(red);
+	regs[4] = be(green2);
+
+	return ar0521_write_regs(sensor, regs, ARRAY_SIZE(regs));
+}
+#endif
 static u32 calc_pll(struct ar0521_dev *sensor, u32 freq, u16 *pre_ptr, u16 *mult_ptr)
 {
 	u16 pre = 1, mult = 1, new_pre;
@@ -766,7 +785,7 @@ static int ar0521_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
 		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GLOBAL,
-				       ctrl->val);
+				       sensor->ctrls.analogue_gain->val);
 		break;
 	case V4L2_CID_GAIN:
 	case V4L2_CID_RED_BALANCE:
@@ -788,77 +807,52 @@ static int ar0521_s_ctrl(struct v4l2_ctrl *ctrl)
 				       sensor->ctrls.hflip->val |
 				       sensor->ctrls.vflip->val << 1);
 		break;
-	case V4L2_CID_ANALOGUE_GAIN_GREENR:
-		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENR,
-				       ctrl->val);
-		readback_val = 0;
-		// Readback register and confirm if expected value is written or not
-		ar0521_read_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENR, &readback_val);
-		dev_err(&sensor->i2c_client->dev, "a_greenr Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
-
-		break;
-	case V4L2_CID_ANALOGUE_GAIN_RED:
-		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_RED,
-				       ctrl->val);
-		readback_val = 0;
-		// Readback register and confirm if expected value is written or not
-		ar0521_read_reg(sensor, AR0521_REG_ANA_GAIN_CODE_RED, &readback_val);
-		dev_err(&sensor->i2c_client->dev, "a_red Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
-		break;
-	case V4L2_CID_ANALOGUE_GAIN_BLUE:
-		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_BLUE,
-				       ctrl->val);
-		readback_val = 0;
-		// Readback register and confirm if expected value is written or not
-		ar0521_read_reg(sensor, AR0521_REG_ANA_GAIN_CODE_BLUE, &readback_val);
-		dev_err(&sensor->i2c_client->dev, "a_blue Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
-		break;
-	case V4L2_CID_ANALOGUE_GAIN_GREENB:
-		ret = ar0521_write_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENB,
-				       ctrl->val);
-		readback_val = 0;
-		// Readback register and confirm if expected value is written or not
-		ar0521_read_reg(sensor, AR0521_REG_ANA_GAIN_CODE_GREENB, &readback_val);
-		dev_err(&sensor->i2c_client->dev, "a_greenb Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
-		break;
-	case V4L2_CID_DIGITAL_GAIN_GREENR:
-		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENR,
-				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
-		readback_val = 0;
-		// Readback register and confirm if expected value is written or not
-		ar0521_read_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENR, &readback_val);
-		dev_err(&sensor->i2c_client->dev, "d_greenr Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
-		break;
-	case V4L2_CID_DIGITAL_GAIN_RED:
-		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_RED,
-				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
-		readback_val = 0;
-		// Readback register and confirm if expected value is written or not
-		ar0521_read_reg(sensor, AR0521_REG_DIGITAL_GAIN_RED, &readback_val);
-		dev_err(&sensor->i2c_client->dev, "d_red Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
-		break;
-	case V4L2_CID_DIGITAL_GAIN_BLUE:
-		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_BLUE,
-				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
-		readback_val = 0;
-		// Readback register and confirm if expected value is written or not
-		ar0521_read_reg(sensor, AR0521_REG_DIGITAL_GAIN_BLUE, &readback_val);
-		dev_err(&sensor->i2c_client->dev, "d_blue Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
-		break;
-	case V4L2_CID_DIGITAL_GAIN_GREENB:
-		ret = ar0521_write_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENB,
-				       min(2047, ctrl->val)); /* Gain = Register Value / 128 */
-		readback_val = 0;
-		// Readback register and confirm if expected value is written or not
-		ar0521_read_reg(sensor, AR0521_REG_DIGITAL_GAIN_GREENB, &readback_val);
-		dev_err(&sensor->i2c_client->dev, "d_greenb Expected value 0x%x readback val 0x%x\r\n", ctrl->val, be16_to_cpu(readback_val));
-		break;
 	default:
 		dev_err(&sensor->i2c_client->dev,
 			"Unsupported control %x\n", ctrl->id);
 		ret = -EINVAL;
 		break;
 	}
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x3028, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x3028 val 0x%x\r\n", (readback_val));
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x3056, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x3056 val 0x%x\r\n", (readback_val));
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x3058, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x3058 val 0x%x\r\n", (readback_val));
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x305A, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x305A val 0x%x\r\n", (readback_val));
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x305C, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x305C val 0x%x\r\n", (readback_val));
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x305E, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x305E val 0x%x\r\n", (readback_val));
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x3032, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x3032 val 0x%x\r\n", (readback_val));
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x3034, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x3034 val 0x%x\r\n", (readback_val));
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x3036, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x3036 val 0x%x\r\n", (readback_val));
+
+	readback_val = 0;
+	ar0521_read_reg(sensor, 0x3038, &readback_val);
+	dev_err(&sensor->i2c_client->dev, " 0x3038 val 0x%x\r\n", (readback_val));
 
 	pm_runtime_put(&sensor->i2c_client->dev);
 	return ret;
@@ -873,95 +867,6 @@ static const char * const test_pattern_menu[] = {
 	"Solid color",
 	"Color bars",
 	"Faded color bars"
-};
-
-/* -------------------------- custom ctrls ---------------------------------- */
-static const struct v4l2_ctrl_config ar0521_analog_gain_greenr = {
-	.ops = &ar0521_ctrl_ops,
-	.id = V4L2_CID_ANALOGUE_GAIN_GREENR,
-	.name = "Analog Gain GreenR",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 32,
-	.step = 1,
-	.def = 4,
-};
-
-static const struct v4l2_ctrl_config ar0521_analog_gain_red = {
-	.ops = &ar0521_ctrl_ops,
-	.id = V4L2_CID_ANALOGUE_GAIN_RED,
-	.name = "Analog Gain Red",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 32,
-	.step = 1,
-	.def = 4,
-};
-
-static const struct v4l2_ctrl_config ar0521_analog_gain_blue = {
-	.ops = &ar0521_ctrl_ops,
-	.id = V4L2_CID_ANALOGUE_GAIN_BLUE,
-	.name = "Analog Gain Blue",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 32,
-	.step = 1,
-	.def = 4,
-};
-
-static const struct v4l2_ctrl_config ar0521_analog_gain_greenb = {
-	.ops = &ar0521_ctrl_ops,
-	.id = V4L2_CID_ANALOGUE_GAIN_GREENB,
-	.name = "Analog Gain GreenB",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 32,
-	.step = 1,
-	.def = 4,
-};
-
-static const struct v4l2_ctrl_config ar0521_digital_gain_greenr = {
-	.ops = &ar0521_ctrl_ops,
-	.id = V4L2_CID_DIGITAL_GAIN_GREENR,
-	.name = "Digital Gain GreenR",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 2047,
-	.step = 4,
-	.def = 256,
-};
-
-static const struct v4l2_ctrl_config ar0521_digital_gain_red = {
-	.ops = &ar0521_ctrl_ops,
-	.id = V4L2_CID_DIGITAL_GAIN_RED,
-	.name = "Digital Gain Red",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 2047,
-	.step = 4,
-	.def = 384,
-};
-
-static const struct v4l2_ctrl_config ar0521_digital_gain_blue = {
-	.ops = &ar0521_ctrl_ops,
-	.id = V4L2_CID_DIGITAL_GAIN_BLUE,
-	.name = "Digital Gain Blue",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 2047,
-	.step = 4,
-	.def = 384,
-};
-
-static const struct v4l2_ctrl_config ar0521_digital_gain_greenb = {
-	.ops = &ar0521_ctrl_ops,
-	.id = V4L2_CID_DIGITAL_GAIN_GREENB,
-	.name = "Digital Gain GreenB",
-	.type = V4L2_CTRL_TYPE_INTEGER,
-	.min = 0,
-	.max = 2047,
-	.step = 4,
-	.def = 256,
 };
 
 static int ar0521_init_controls(struct ar0521_dev *sensor)
@@ -979,7 +884,7 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 	hdl->lock = &sensor->lock;
 
 	/* Analog gain */
-	v4l2_ctrl_new_std(hdl, ops, V4L2_CID_ANALOGUE_GAIN,
+	ctrls->analogue_gain = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_ANALOGUE_GAIN,
 			  AR0521_ANA_GAIN_MIN, AR0521_ANA_GAIN_MAX,
 			  AR0521_ANA_GAIN_STEP, AR0521_ANA_GAIN_DEFAULT);
 
@@ -1035,16 +940,6 @@ static int ar0521_init_controls(struct ar0521_dev *sensor)
 					  V4L2_CID_VFLIP, 0, 1, 1, 0);
 	if (ctrls->vflip)
 		ctrls->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
-#if 1
-	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_greenr, NULL);
-	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_red, NULL);
-	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_blue, NULL);
-	v4l2_ctrl_new_custom(hdl, &ar0521_analog_gain_greenb, NULL);
-#endif
-	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_greenr, NULL);
-	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_red, NULL);
-	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_blue, NULL);
-	v4l2_ctrl_new_custom(hdl, &ar0521_digital_gain_greenb, NULL);
 	if (hdl->error) {
 		ret = hdl->error;
 		goto free_ctrls;
