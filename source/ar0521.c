@@ -1576,7 +1576,7 @@ MODULE_DEVICE_TABLE(of, ar0521_dt_ids);
 
 static struct i2c_driver ar0521_i2c_driver = {
 	.driver = {
-		.name  = "ar0521",
+		.name  = "ar0521v2",
 		.pm = &ar0521_pm_ops,
 		.of_match_table = ar0521_dt_ids,
 	},
