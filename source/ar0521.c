@@ -118,13 +118,6 @@ struct ar0521_mode {
 
 };
 
-struct ar0521_register_t {
-	u16 addr;
-	u16 val;
-};
-
-static struct ar0521_register_t ar0521_register_debug;
-
 /* Mode configs */
 static const struct ar0521_mode supported_modes[] = {
 	{
@@ -339,74 +332,6 @@ static int ar0521_read_reg(struct ar0521_dev *sensor, u16 reg, u16  *val)
 
 	return 0;
 }
-
-static ssize_t ar0521_register_addr_show(struct device *device,
-				   struct device_attribute *attr,
-				   char *buf)
-{
-	sprintf(buf, "Current register address for debug is 0x%x\n", ar0521_register_debug.addr);
-	return strlen(buf);
-
-}
-
-static ssize_t ar0521_register_addr_store(struct device *device,
-				   struct device_attribute *attr,
-				   const char *buf, size_t count)
-{
-	int ret;
-	unsigned int addr;
-	ret = kstrtouint(buf, 16, &addr);
-	if (ret)
-		return ret;
-	ar0521_register_debug.addr = addr;
-	return count;
-
-}
-static DEVICE_ATTR_RW(ar0521_register_addr);
-
-static ssize_t ar0521_register_val_show(struct device *device,
-				   struct device_attribute *attr,
-				   char *buf)
-{
-	int ret;
-	struct v4l2_subdev *sd = dev_get_drvdata(device);
-	struct ar0521_dev *sensor = to_ar0521_dev(sd);
-	if(!ar0521_register_debug.addr) {
-		dev_err(device, "Please set register address first\n");
-		return -EFAULT;
-	}
-	ar0521_read_reg(sensor, ar0521_register_debug.addr, &ar0521_register_debug.val);
-	sprintf(buf, "Reg value of 0x%x addr is 0x%x\n", ar0521_register_debug.addr, ar0521_register_debug.val);
-	return strlen(buf);
-}
-
-static ssize_t ar0521_register_val_store(struct device *device,
-				   struct device_attribute *attr,
-				   const char *buf, size_t count)
-{
-	int ret;
-	struct v4l2_subdev *sd = dev_get_drvdata(device);
-	struct ar0521_dev *sensor = to_ar0521_dev(sd);
-	unsigned int value;
-	ret = kstrtouint(buf, 16, &value);
-	if (ret)
-		return ret;
-	ar0521_register_debug.val = value;
-	if(!ar0521_register_debug.addr) {
-		dev_err(device, "Please set register address first\n");
-		return -EFAULT;
-	}
-	ar0521_write_reg(sensor, ar0521_register_debug.addr, ar0521_register_debug.val);
-
-	return count;
-}
-static DEVICE_ATTR_RW(ar0521_register_val);
-
-static struct attribute *ar0521_register_attrs[] = {
-	&dev_attr_ar0521_register_addr.attr,
-	&dev_attr_ar0521_register_val.attr,
-};
-ATTRIBUTE_GROUPS(ar0521_register);
 
 static const struct v4l2_rect *
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5,13,0)
@@ -1515,12 +1440,6 @@ static int ar0521_probe(struct i2c_client *client)
 		goto entity_cleanup;
 
 	ar0521_adj_fmt(&sensor->fmt);
-	if (device_create_file(&client->dev, &dev_attr_ar0521_register_addr) != 0) {
-		dev_err(&client->dev, "sysfs regsiter_addr entry failed\n");
-	}
-	if (device_create_file(&client->dev, &dev_attr_ar0521_register_val) != 0) {
-		dev_err(&client->dev, "sysfs regsiter_val entry failed\n");
-	}
 
 	ret = v4l2_async_register_subdev(&sensor->sd);
 	if (ret)
