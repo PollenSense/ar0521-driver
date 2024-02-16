@@ -814,45 +814,46 @@ static int ar0521_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x3028, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x3028 val 0x%x\r\n", (readback_val));
+	// TODO remove all together if not needed
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x3028, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x3028 val 0x%x\r\n", (readback_val));
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x3056, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x3056 val 0x%x\r\n", (readback_val));
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x3056, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x3056 val 0x%x\r\n", (readback_val));
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x3058, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x3058 val 0x%x\r\n", (readback_val));
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x3058, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x3058 val 0x%x\r\n", (readback_val));
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x305A, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x305A val 0x%x\r\n", (readback_val));
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x305A, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x305A val 0x%x\r\n", (readback_val));
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x305C, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x305C val 0x%x\r\n", (readback_val));
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x305C, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x305C val 0x%x\r\n", (readback_val));
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x305E, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x305E val 0x%x\r\n", (readback_val));
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x305E, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x305E val 0x%x\r\n", (readback_val));
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x3032, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x3032 val 0x%x\r\n", (readback_val));
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x3032, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x3032 val 0x%x\r\n", (readback_val));
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x3034, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x3034 val 0x%x\r\n", (readback_val));
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x3034, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x3034 val 0x%x\r\n", (readback_val));
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x3036, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x3036 val 0x%x\r\n", (readback_val));
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x3036, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x3036 val 0x%x\r\n", (readback_val));
 
-	readback_val = 0;
-	ar0521_read_reg(sensor, 0x3038, &readback_val);
-	dev_err(&sensor->i2c_client->dev, " 0x3038 val 0x%x\r\n", (readback_val));
+	// readback_val = 0;
+	// ar0521_read_reg(sensor, 0x3038, &readback_val);
+	// dev_err(&sensor->i2c_client->dev, " 0x3038 val 0x%x\r\n", (readback_val));
 
 	pm_runtime_put(&sensor->i2c_client->dev);
 	return ret;
