@@ -1467,7 +1467,11 @@ entity_cleanup:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(6,0,0)
 static int ar0521_remove(struct i2c_client *client)
+#else
+static void ar0521_remove(struct i2c_client *client)
+#endif
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct ar0521_dev *sensor = to_ar0521_dev(sd);
@@ -1481,7 +1485,9 @@ static int ar0521_remove(struct i2c_client *client)
 	pm_runtime_set_suspended(&client->dev);
 	mutex_destroy(&sensor->lock);
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(6,0,0)
 	return 0;
+#endif
 }
 
 static const struct dev_pm_ops ar0521_pm_ops = {
